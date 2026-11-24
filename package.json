@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:db": "node --env-file=.env.local --test scripts/tests/aislamiento.test.mjs"
+    "test:db": "node --env-file=.env.local --test scripts/tests/aislamiento.test.mjs scripts/tests/alta.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

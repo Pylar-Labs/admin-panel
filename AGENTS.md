@@ -13,18 +13,19 @@ Panel donde cada cliente de la agencia edita los datos de SU web (negocio, imág
 - `docs/constitution.md` principios · `specs/NNN-*/` specs · `MEMORY.md` memoria entre sesiones
 
 ## Comandos
-- Ejecutar: `npm run dev` (localhost:3000) · Lint: `npm run lint` · Build: `npm run build` (incluye tipos) · Tests: no existen aún
+- Ejecutar: `npm run dev` (localhost:3000) · Lint: `npm run lint` · Build: `npm run build` (incluye tipos) · Tests: `npm run test:db` (aislamiento y alta de clientes, contra la base real de `.env.local`; solo escribe en PylarLabs y limpia lo suyo)
 
 ## Convenciones
 - Código en inglés; documentación e interfaz en español. Archivo de referencia del estilo: `src/app/admin/layout.tsx`
 - Antes de escribir código de Next.js, leer la guía en `node_modules/next/dist/docs/`.
 
 ## Reglas de dominio / trampas conocidas
-- `site_id` sale SOLO de `app_metadata` (nunca `user_metadata`, que el usuario puede editar): `useUser` y el alta de clientes.
+- `site_id` sale SOLO de `app_metadata` (nunca `user_metadata`, que el usuario puede editar): `useUser` y el alta de clientes. El admin de la agencia es `app_metadata.role = 'admin'` (sin sitio propio), designado fuera del panel con `scripts/set-admin.mjs`.
+- Imágenes: bucket `images`, ruta `<site_id>/…`. El cliente edita su `site_config` pero no la crea ni la borra: la crea el alta de clientes (`src/lib/clients/onboarding.ts`); por eso el panel hace `update`, no `upsert`.
+- Toda acción de servidor (`'use server'`) empieza por `requireAdmin()` (`src/lib/supabase/require-admin.ts`): se puede llamar por fuera de la interfaz. La clave de servidor solo se usa en archivos `server-only` (`src/lib/supabase/admin.ts`) y scripts locales.
 - `SUPABASE_SERVICE_ROLE_KEY` jamás en código de cliente ni en git; `.env.local` no se sube. Datos personales y claves: privados.
 - El aislamiento entre clientes lo garantizan las políticas RLS de Supabase por `site_id`, no el frontend: toda tabla nueva lleva RLS.
 - Las tablas son `site_config`, `gallery`, `services`, `products`, `testimonials`. Lo que guarda el panel debe poder mapearse al contrato de datos de `../template-landing` (v2.3, `docs/site-schema.md`); no cambiar su forma sin preguntar.
-- Pendiente de revisar: `admin/layout.tsx` usa `site_url`, que no está en el tipo `SiteConfig`.
 
 ## Forma de trabajar
 - ANTES DE TODO: ejecuta `node scripts/check-setup.mjs`. Si falla, corre `/init-project` y no escribas código hasta que pase.

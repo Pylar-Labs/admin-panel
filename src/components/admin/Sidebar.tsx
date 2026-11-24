@@ -12,9 +12,11 @@ import {
   User,
   X,
   Menu,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+const CLIENTS_ITEM = { href: '/admin/clientes', label: 'Clientes', icon: Users }
 const NAV_ITEMS = [
   { href: '/admin/negocio', label: 'Mi negocio', icon: Building2 },
   { href: '/admin/imagenes', label: 'Imágenes', icon: Image },
@@ -25,8 +27,14 @@ const NAV_ITEMS = [
   { href: '/admin/cuenta', label: 'Mi cuenta', icon: User },
 ]
 
-function SidebarContent({ onClose }: { onClose?: () => void }) {
+type Access = { isAdmin: boolean; hasClient: boolean }
+
+function SidebarContent({ onClose, isAdmin, hasClient }: { onClose?: () => void } & Access) {
   const pathname = usePathname()
+  // Admin: «Clientes» siempre; las secciones de datos solo con un cliente elegido. Cliente: el menú de siempre.
+  const items = isAdmin
+    ? [CLIENTS_ITEM, ...(hasClient ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.href === '/admin/cuenta'))]
+    : NAV_ITEMS
 
   return (
     <nav className="flex flex-col gap-0.5 p-3">
@@ -44,7 +52,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+      {items.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
           href={href}
@@ -76,7 +84,7 @@ export function MobileMenuButton({ onClick }: { onClick: () => void }) {
   )
 }
 
-export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function Sidebar({ isOpen, onClose, isAdmin, hasClient }: { isOpen: boolean; onClose: () => void } & Access) {
   return (
     <>
       {/* Desktop */}
@@ -85,7 +93,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           <span className="font-bold text-sm tracking-tight text-foreground">Pylar Labs</span>
           <span className="ml-1.5 text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">admin</span>
         </div>
-        <SidebarContent />
+        <SidebarContent isAdmin={isAdmin} hasClient={hasClient} />
       </aside>
 
       {/* Mobile overlay */}
@@ -97,7 +105,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
               <span className="font-bold text-sm tracking-tight text-foreground">Pylar Labs</span>
               <span className="ml-1.5 text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">admin</span>
             </div>
-            <SidebarContent onClose={onClose} />
+            <SidebarContent onClose={onClose} isAdmin={isAdmin} hasClient={hasClient} />
           </aside>
         </div>
       )}

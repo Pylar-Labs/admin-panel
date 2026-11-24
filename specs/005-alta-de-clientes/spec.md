@@ -25,14 +25,15 @@ Hoy no existe ninguna forma de dar de alta a un cliente: ni el usuario con su si
 - RF-5: SI algún paso del alta falla (crear la configuración, crear el usuario o enviar la invitación), ENTONCES EL SISTEMA deshace lo que ya había creado, informa al admin qué falló y no queda un usuario sin sitio ni un sitio sin usuario.
 - RF-6: SI no se puede deshacer algún paso tras un fallo, ENTONCES EL SISTEMA informa al admin exactamente qué quedó creado para que pueda corregirlo.
 - RF-7: SI el email ya está registrado, ENTONCES EL SISTEMA rechaza el alta sin crear nada y lo informa.
-- RF-8: SI el email o el nombre del negocio están vacíos o el email no tiene un formato válido, ENTONCES EL SISTEMA rechaza el alta con un mensaje en español y no crea nada.
-- RF-9: CUANDO el admin abre la lista de clientes, EL SISTEMA muestra los clientes existentes con el nombre de su negocio y el email de su usuario.
+- RF-8: SI el email o el nombre del negocio están vacíos, el email no tiene un formato válido, o el nombre tiene más de una línea o más de 100 caracteres, ENTONCES EL SISTEMA rechaza el alta con un mensaje en español y no crea nada.
+- RF-9: CUANDO el admin abre la lista de clientes, EL SISTEMA muestra los clientes existentes con el nombre de su negocio, el email de su usuario y su estado: «invitación pendiente» mientras el cliente no haya entrado nunca y «activo» desde que entró al menos una vez.
 - RF-10: CUANDO el admin elige un cliente, EL SISTEMA le muestra las mismas secciones del panel sobre los datos de ese sitio (negocio, imágenes, servicios, catálogo, testimonios, redes) y le permite leerlos y editarlos, incluidas las imágenes.
 - RF-11: MIENTRAS el admin edita un cliente, EL SISTEMA muestra de forma visible en todo momento el nombre del negocio al que está editando, le permite cambiar de cliente o volver, y lo que guarda queda solo en ese sitio.
 - RF-12: SI el admin no ha elegido ningún cliente, ENTONCES EL SISTEMA no le muestra datos de ningún sitio ni le permite guardarlos.
 - RF-13: EL SISTEMA no permite al admin crear ni editar datos de un sitio que no existe.
 - RF-14: EL SISTEMA mantiene el aislamiento entre clientes: ningún cliente puede alcanzar los datos de otro, ni dar de alta clientes, ni ver la lista, ni hacerse pasar por admin; una prueba lo demuestra con un cliente y un admin.
 - RF-15: EL SISTEMA muestra todos los textos y mensajes de esta función en español.
+- RF-16: SI ya existe un cliente con el mismo nombre de negocio (sin distinguir mayúsculas), ENTONCES EL SISTEMA avisa al admin y solo crea el alta si este lo confirma; dos clientes con el mismo nombre son válidos porque cada sitio tiene su propio identificador.
 
 ## Requisitos no funcionales
 - La autoridad de admin la comprueba siempre el servidor, no solo la interfaz (principio 3); ninguna clave privada llega al navegador ni se guarda en git (principio 4).
@@ -55,7 +56,9 @@ Hoy no existe ninguna forma de dar de alta a un cliente: ni el usuario con su si
 - Reenviar o gestionar invitaciones vencidas y recuperar contraseñas.
 - Agregar un segundo usuario a un sitio que ya existe (cada alta crea un cliente nuevo con un usuario).
 - Crear o nombrar admins desde el panel; panel de métricas o de uso de la agencia.
-- Auditoría o historial de qué hizo el admin.
+- Auditoría, historial o marca de qué cambios hizo el admin sobre un cliente.
+- Publicar en nombre del cliente: se decide en la spec 002 cuando se planifique (hoy ahí solo se publica el sitio del usuario autenticado).
+- Mostrar en la lista si el sitio ya publicó (depende de la spec 002).
 - Campos nuevos del contrato (spec 001), validar y publicar (spec 002), el esquema multicliente (spec 004) y la reparación de tipos y pantallas (spec 003).
 
 ## Criterios de finalización
@@ -66,8 +69,7 @@ Hoy no existe ninguna forma de dar de alta a un cliente: ni el usuario con su si
 - `npm run lint` y `npm run build` sin errores; revisión en el navegador (escritorio y 375 px, consola sin errores).
 
 ## Dudas abiertas
-- [NECESITA ACLARACIÓN] ¿El admin también puede publicar en nombre del cliente (spec 002)? La 002 dice hoy que solo se publica el sitio del usuario autenticado; si el admin edita pero no publica, la agencia no cierra el ciclo sin el cliente.
-- [NECESITA ACLARACIÓN] ¿Qué pasa si el cliente nunca acepta la invitación o esta vence? Hoy el reenvío está fuera de alcance; hay que decidir si el admin debe poder reenviarla o borrar el alta incompleta.
-- [NECESITA ACLARACIÓN] ¿Puede haber dos clientes con el mismo nombre de negocio? Si no, ¿cuál es el criterio de repetido? Y límites del nombre (largo, saltos de línea).
-- [NECESITA ACLARACIÓN] ¿La lista de clientes necesita algo más que nombre del negocio y email (p. ej. estado de la invitación, fecha de alta, si ya publicaron)?
-- [NECESITA ACLARACIÓN] ¿Los cambios que el admin hace sobre un sitio ajeno deben quedar marcados como hechos por el admin (para que el cliente sepa que no fueron suyos)? Hoy no hay auditoría.
+Ninguna abierta.
+
+Resueltas el 2026-11-24 (con tus respuestas): publicar en nombre del cliente se decide en la 002; si el cliente no acepta la invitación, el admin la ve «pendiente» en la lista y reenviar o borrar el alta queda fuera; el nombre repetido se permite con aviso y confirmación, con el nombre en una línea, no vacío y hasta 100 caracteres (RF-8, RF-16); la lista muestra nombre, email y estado (RF-9); los cambios del admin no llevan marca.
+Notas para el plan (no cambian el alcance): la base ya tiene la excepción de admin (spec 004), así que el selector del admin y el alta se apoyan en ella; la acción de alta necesita la clave de servidor y por eso debe ejecutarse solo en el servidor.
