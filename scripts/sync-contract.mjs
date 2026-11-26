@@ -51,6 +51,25 @@ export function buildContract() {
   }
 }
 
+// Validador del template (spec 002): copia sus cuatro archivos manteniendo su estructura; lo único que cambia es
+// `astro/zod` → `zod/v4` (es lo mismo que reexporta astro). Clave = ruta bajo src/lib/contract/vendor/.
+const VENDOR_SOURCES = {
+  'content/site.schema.ts': 'src/content/site.schema.ts',
+  'content/ui-text.ts': 'src/content/ui-text.ts',
+  'content/price-format.ts': 'src/content/price-format.ts',
+  'lib/icons.ts': 'src/lib/icons.ts',
+}
+const TEMPLATE_ROOT = new URL('../../template-landing/', import.meta.url)
+
+export function buildVendor() {
+  return Object.fromEntries(
+    Object.entries(VENDOR_SOURCES).map(([out, src]) => {
+      const text = readFileSync(new URL(src, TEMPLATE_ROOT), 'utf8').replaceAll('"astro/zod"', '"zod/v4"')
+      return [out, `// GENERADO por scripts/sync-contract.mjs desde ../template-landing/${src} — NO EDITAR (npm run contract:sync).\n${out === 'content/site.schema.ts' ? '/* eslint-disable @typescript-eslint/no-unused-vars -- código copiado tal cual del template */\n' : ''}${text}`]
+    })
+  )
+}
+
 export function renderContract(contract) {
   return `// GENERADO por scripts/sync-contract.mjs desde ../template-landing/docs/ — NO EDITAR (npm run contract:sync).\nexport const CONTRACT = ${JSON.stringify(contract, null, 2)} as const\n`
 }
@@ -58,5 +77,10 @@ export function renderContract(contract) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   mkdirSync(dirname(fileURLToPath(OUT)), { recursive: true })
   writeFileSync(OUT, renderContract(buildContract()))
-  console.log('Contrato', buildContract().version, '→ src/lib/contract/contract.generated.ts')
+  for (const [file, text] of Object.entries(buildVendor())) {
+    const out = new URL(`../src/lib/contract/vendor/${file}`, import.meta.url)
+    mkdirSync(dirname(fileURLToPath(out)), { recursive: true })
+    writeFileSync(out, text)
+  }
+  console.log('Contrato', buildContract().version, '→ src/lib/contract/contract.generated.ts y vendor/')
 }

@@ -3,8 +3,8 @@
 import { useState, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useUser } from '@/hooks/useUser'
-import { getServices, upsertService, deleteService, getSiteConfig } from '@/lib/supabase/queries'
-import { saveErrorMessage, triggerVercelDeploy } from '@/lib/utils'
+import { getServices, upsertService, deleteService } from '@/lib/supabase/queries'
+import { saveErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { SaveButton } from '@/components/admin/SaveButton'
 import { LimitedField } from '@/components/admin/LimitedField'
 import { NativeSelect } from '@/components/admin/NativeSelect'
+import { SectionIssues } from '@/components/admin/SectionIssues'
 import { CONTRACT } from '@/lib/contract/contract.generated'
 import { isOverMaxItems } from '@/lib/contract/limits'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
@@ -25,7 +26,6 @@ const L = CONTRACT.limits
 export default function ServiciosPage() {
   const { siteId } = useUser()
   const [items, setItems] = useState<Service[]>([])
-  const [deployHook, setDeployHook] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Service | null>(null)
@@ -36,14 +36,13 @@ export default function ServiciosPage() {
   // Pedir los datos y aplicarlos van separados: el estado se guarda dentro de un .then, no dentro del efecto.
   const fetchData = useCallback(async () => {
     if (!siteId) return null
-    const [data, config] = await Promise.all([getServices(siteId), getSiteConfig(siteId)])
-    return { data, config }
+    const data = await getServices(siteId)
+    return { data }
   }, [siteId])
 
   const apply = useCallback((loaded: Awaited<ReturnType<typeof fetchData>>) => {
     if (!loaded) return
     setItems(loaded.data)
-    setDeployHook(loaded.config?.vercel_deploy_hook ?? null)
   }, [])
 
   const load = useCallback(() => fetchData().then(apply), [fetchData, apply])
@@ -82,7 +81,6 @@ export default function ServiciosPage() {
       }
       const { error } = await upsertService(siteId, payload)
       if (error) { toast.error(saveErrorMessage(error)); return }
-      await triggerVercelDeploy(deployHook)
       toast.success(editing ? 'Servicio actualizado' : 'Servicio agregado')
       setDialogOpen(false)
       setSaved(true)
@@ -95,7 +93,6 @@ export default function ServiciosPage() {
     startTransition(async () => {
       const { error } = await deleteService(id)
       if (error) { toast.error('Error al eliminar.'); return }
-      await triggerVercelDeploy(deployHook)
       toast.success('Servicio eliminado')
       setConfirmId(null)
       load()
@@ -106,7 +103,6 @@ export default function ServiciosPage() {
     if (!siteId) return
     const { error } = await upsertService(siteId, { id: item.id, active: !item.active })
     if (error) { toast.error(saveErrorMessage(error)); return }
-    await triggerVercelDeploy(deployHook)
     load()
   }
 
@@ -121,6 +117,8 @@ export default function ServiciosPage() {
           <Plus size={15} /> Agregar
         </Button>
       </div>
+
+      <SectionIssues section="servicios" refreshKey={saved} />
 
       {isOverMaxItems(items.length, CONTRACT.maxItems.services) && (
         <p className="text-sm text-destructive">Máximo {CONTRACT.maxItems.services} servicios: se guardan igual, pero hay que dejar {CONTRACT.maxItems.services} para publicar.</p>

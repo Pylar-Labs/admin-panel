@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { useUser } from '@/hooks/useUser'
 import { getSiteConfig, upsertSiteConfig, getGallery, addGalleryImage, deleteGalleryImage } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
-import { saveErrorMessage, triggerVercelDeploy } from '@/lib/utils'
+import { saveErrorMessage } from '@/lib/utils'
 import { SaveButton } from '@/components/admin/SaveButton'
 import { ImageUpload } from '@/components/admin/ImageUpload'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { NotPublishedNotice } from '@/components/admin/NotPublishedNotice'
+import { SectionIssues } from '@/components/admin/SectionIssues'
 import { Upload, X } from 'lucide-react'
 import type { GalleryImage } from '@/types/database'
 
@@ -20,7 +21,6 @@ export default function ImagenesPage() {
   const { siteId } = useUser()
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [heroUrl, setHeroUrl] = useState<string | null>(null)
-  const [deployHook, setDeployHook] = useState<string | null>(null)
   const [gallery, setGallery] = useState<GalleryImage[]>([])
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -39,7 +39,6 @@ export default function ImagenesPage() {
     if (!loaded) return
     setLogoUrl(loaded.config?.logo_url ?? null)
     setHeroUrl(loaded.config?.hero_image_url ?? null)
-    setDeployHook(loaded.config?.vercel_deploy_hook ?? null)
     setGallery(loaded.imgs)
   }, [])
 
@@ -55,7 +54,6 @@ export default function ImagenesPage() {
     startTransition(async () => {
       const { error } = await upsertSiteConfig(siteId, { logo_url: logoUrl, hero_image_url: heroUrl })
       if (error) { toast.error(saveErrorMessage(error)); return }
-      await triggerVercelDeploy(deployHook)
       setSaved(true)
       toast.success('Imágenes guardadas')
       setTimeout(() => setSaved(false), 2500)
@@ -82,7 +80,6 @@ export default function ImagenesPage() {
       if (failed) {
         toast.error(saveErrorMessage(failed.error))
       } else {
-        await triggerVercelDeploy(deployHook)
         toast.success(`${urls.length} imagen${urls.length > 1 ? 'es' : ''} agregada${urls.length > 1 ? 's' : ''}`)
       }
       load()
@@ -95,7 +92,6 @@ export default function ImagenesPage() {
     startTransition(async () => {
       const { error } = await deleteGalleryImage(id)
       if (error) { toast.error('Error al eliminar.'); return }
-      await triggerVercelDeploy(deployHook)
       toast.success('Imagen eliminada')
       setConfirmId(null)
       load()
@@ -108,6 +104,8 @@ export default function ImagenesPage() {
         <h1 className="text-xl font-semibold text-zinc-900">Imágenes</h1>
         <p className="mt-1 text-sm text-zinc-500">Logo, imagen principal y galería de fotos.</p>
       </div>
+
+      <SectionIssues section="imagenes" refreshKey={saved} />
 
       <form onSubmit={handleSaveMain} className="space-y-6">
         <Card>

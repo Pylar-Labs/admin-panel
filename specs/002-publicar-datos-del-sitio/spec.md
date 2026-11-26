@@ -30,7 +30,7 @@ Hoy "publicar" solo dispara un despliegue desde el navegador; la web del cliente
 - RF-11: EL SISTEMA dispara el despliegue desde el servidor; ninguna clave ni hook de despliegue se expone en el navegador.
 - RF-12: CUANDO el cliente abre una sección del panel, EL SISTEMA muestra los problemas de sus datos ya guardados respecto del contrato; la lista completa se da al publicar.
 - RF-13: EL SISTEMA solo arma, valida, guarda y publica los datos del sitio del cliente autenticado; una prueba demuestra que otro cliente no puede publicar ni leer la versión publicada de un sitio ajeno.
-- RF-14: EL SISTEMA no cambia el contrato, su versión ni el template, salvo que este reciba la versión publicada al construirse (ver duda abierta).
+- RF-14: EL SISTEMA no cambia el contrato, su versión ni el template, (el template recibe la versión publicada como un commit a su repositorio, sin ningún cambio en su código).
 
 ## Requisitos no funcionales
 - Aislamiento entre clientes (principio 3) y secretos fuera del cliente (principio 4).
@@ -61,8 +61,8 @@ Hoy "publicar" solo dispara un despliegue desde el navegador; la web del cliente
 - Prueba de aislamiento entre dos clientes sobre la versión publicada.
 - `npm run lint` y `npm run build` sin errores; revisión en el navegador (escritorio y 375 px, consola sin errores).
 
-## Dudas abiertas
-- [NECESITA ACLARACIÓN] La web construye con la versión publicada: ¿qué cambia en el template para leerla (está fuera del repositorio del panel y RF-14 pide no tocar su contrato)? Requiere decidirlo con el template antes del plan.
-- [NECESITA ACLARACIÓN] ¿Cómo confirma la web que se construyó con esa versión (RF-10)?
-- [NECESITA ACLARACIÓN] ¿Cómo accede el panel a las reglas y la versión del contrato sin copiarlas (misma duda que la spec 001)?
-- [NECESITA ACLARACIÓN] ¿El `vercel_deploy_hook` guardado en cada sitio sigue siendo la forma de disparar el despliegue, y dónde se guarda para que no llegue al navegador?
+## Dudas resueltas (2026-11-24, decididas con el usuario antes del plan)
+- Entrega: el servidor del panel escribe el archivo de datos válido en el repositorio de la web del cliente (`src/content/site.data.json`) y el push dispara el build; el template no cambia (RF-14 se cumple sin la salvedad).
+- Confirmación (RF-10): el servidor consulta la API de Vercel por el despliegue de esa publicación y solo lo da por publicado si terminó correctamente.
+- Reglas y versión del contrato: un script generado trae del template su validador y su versión a un archivo del panel (sin reglas a mano), con test de frescura.
+- Enlace de despliegue y credenciales por sitio: pasan de `site_config` a una tabla solo de servidor, sin acceso desde el navegador.

@@ -32,7 +32,6 @@ export interface SiteConfig {
   hero_title: string | null
   hero_subtitle: string | null
   map_embed_url: string | null
-  vercel_deploy_hook: string | null
   active: boolean | null
   created_at: string | null
   // Contrato 2.3 (spec 001)

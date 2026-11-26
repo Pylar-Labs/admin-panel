@@ -13,7 +13,7 @@ Panel donde cada cliente de la agencia edita los datos de SU web (negocio, imág
 - `docs/constitution.md` principios · `specs/NNN-*/` specs · `MEMORY.md` memoria entre sesiones
 
 ## Comandos
-- Ejecutar: `npm run dev` (localhost:3000) · Lint: `npm run lint` · Build: `npm run build` (incluye tipos) · Tests: `npm run test:db` (aislamiento y alta de clientes, contra la base real de `.env.local`; solo escribe en PylarLabs y limpia lo suyo)
+- Ejecutar: `npm run dev` (localhost:3000) · Lint: `npm run lint` · Build: `npm run build` (incluye tipos) · Tests: `npm run test` (módulos puros y flujo de publicación con dependencias falsas, sin red ni base) y `npm run test:db` (aislamiento y alta de clientes, contra la base real de `.env.local`; solo escribe en PylarLabs y limpia lo suyo) · Contrato: `npm run contract:sync` regenera lo copiado de `../template-landing`
 
 ## Convenciones
 - Código en inglés; documentación e interfaz en español. Archivo de referencia del estilo: `src/app/admin/layout.tsx`
@@ -22,10 +22,13 @@ Panel donde cada cliente de la agencia edita los datos de SU web (negocio, imág
 ## Reglas de dominio / trampas conocidas
 - `site_id` sale SOLO de `app_metadata` (nunca `user_metadata`, que el usuario puede editar): `useUser` y el alta de clientes. El admin de la agencia es `app_metadata.role = 'admin'` (sin sitio propio), designado fuera del panel con `scripts/set-admin.mjs`.
 - Imágenes: bucket `images`, ruta `<site_id>/…`. El cliente edita su `site_config` pero no la crea ni la borra: la crea el alta de clientes (`src/lib/clients/onboarding.ts`); por eso el panel hace `update`, no `upsert`.
-- Toda acción de servidor (`'use server'`) empieza por `requireAdmin()` (`src/lib/supabase/require-admin.ts`): se puede llamar por fuera de la interfaz. La clave de servidor solo se usa en archivos `server-only` (`src/lib/supabase/admin.ts`) y scripts locales.
-- `SUPABASE_SERVICE_ROLE_KEY` jamás en código de cliente ni en git; `.env.local` no se sube. Datos personales y claves: privados.
+- Toda acción de servidor (`'use server'`) empieza por `requireAdmin()` (`src/lib/supabase/require-admin.ts`) si la llama la agencia, o por `requireSiteUser()` (`src/lib/supabase/require-site-user.ts`) si la llama el cliente sobre SU sitio: se puede llamar por fuera de la interfaz. Las de cliente NO reciben el sitio como parámetro (sale de la sesión). La clave de servidor solo se usa en archivos `server-only` (`src/lib/supabase/admin.ts`, `src/lib/publish/server-deps.ts`) y scripts locales.
+- `SUPABASE_SERVICE_ROLE_KEY`, `GITHUB_TOKEN`, `VERCEL_TOKEN` (y `VERCEL_TEAM_ID`) solo en el servidor: jamás en código de cliente, jamás con prefijo `NEXT_PUBLIC_` ni en git; `.env.local` no se sube. El enlace de despliegue de cada sitio vive en `site_deploy`, nunca en el navegador. Datos personales y claves: privados.
 - El aislamiento entre clientes lo garantizan las políticas RLS de Supabase por `site_id`, no el frontend: toda tabla nueva lleva RLS.
-- Las tablas son `site_config`, `gallery`, `services`, `products`, `testimonials`. Lo que guarda el panel debe poder mapearse al contrato de datos de `../template-landing` (v2.3, `docs/site-schema.md`); no cambiar su forma sin preguntar.
+- Las tablas son `site_config`, `gallery`, `services`, `products`, `testimonials` (editables por su cliente) y `site_deploy` (solo de servidor: RLS sin políticas y permisos revocados a `anon` y `authenticated`). Lo que guarda el panel debe poder mapearse al contrato de datos de `../template-landing` (v2.3, `docs/site-schema.md`); no cambiar su forma sin preguntar.
+- Publicar: guardar NO despliega; la pantalla `/admin/publicar` arma el archivo, lo valida y hace commit a `src/content/site.data.json` del repo de la web (`src/lib/publish/`). Los datos de entrega por sitio (repo, rama, proyecto de Vercel, enlace) se cargan con `node --env-file=.env.local scripts/set-site-deploy.mjs <site_id> --repo o/n …`.
+- `src/lib/contract/contract.generated.ts` y `src/lib/contract/vendor/` se generan con `npm run contract:sync` desde `../template-landing`: no se editan a mano (un test falla si se desactualizan).
+- Migraciones (`supabase/migrations/`): solo se aplican con aprobación explícita; aditivas siempre que se pueda, idempotentes y con la reversa documentada en comentarios. Las que borran datos o columnas van aparte.
 
 ## Forma de trabajar
 - ANTES DE TODO: ejecuta `node scripts/check-setup.mjs`. Si falla, corre `/init-project` y no escribas código hasta que pase.
@@ -42,5 +45,5 @@ Panel donde cada cliente de la agencia edita los datos de SU web (negocio, imág
 - 🚫 Nunca: implementar algo fuera de la spec activa; subir secretos; avanzar con lint o build en rojo.
 
 ## Verificación
-- `npm run lint` y `npm run build` sin errores.
+- `npm run lint` y `npm run build` sin errores; `npm run test` y `npm run test:db` en verde. (El build puede fallar a veces al descargar Google Fonts: reintentar antes de investigar.)
 - UI: MCP Chrome DevTools: abrir `npm run dev`, entrar con un usuario de prueba, recorrer cada sección de `/admin`, guardar y comprobar el cambio; consola sin errores y vista móvil 375 px (`emulate` con `375x812x2,mobile,touch`).

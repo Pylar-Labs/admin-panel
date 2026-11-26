@@ -15,11 +15,3 @@ export function saveErrorMessage(error: string | null | undefined): string {
   return 'No se pudo guardar. Intentá de nuevo.'
 }
 
-export async function triggerVercelDeploy(deployHook: string | null): Promise<void> {
-  if (!deployHook) return
-  try {
-    await fetch(deployHook, { method: 'POST' })
-  } catch {
-    // Deploy hook failures are non-blocking
-  }
-}
