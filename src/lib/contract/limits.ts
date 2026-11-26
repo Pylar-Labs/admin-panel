@@ -24,3 +24,7 @@ export const isOverMaxItems = (count: number, max: number) => count > max
 export function isValidWhatsapp(value: string, digits: { min: number; max: number }) {
   return /^\d+$/.test(value) && value.length >= digits.min && value.length <= digits.max
 }
+
+// ¿Hay un valor que no empieza como URL completa (http:// o https://)? Vacío no cuenta. Solo es un aviso inmediato: el resto
+// de la regla (espacios, credenciales, 2000 caracteres) la juzga el validador real al guardar.
+export const needsFullUrl = (value: string) => value.trim() !== '' && !/^https?:\/\//i.test(value.trim())
