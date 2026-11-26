@@ -1,7 +1,7 @@
 // Spec 001 (RF-6, RF-7): límites visibles que avisan pero nunca bloquean. Casos de grafemas = los del contrato.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkText, isOverMaxItems, isValidWhatsapp } from '../../src/lib/contract/limits.ts'
+import { checkText, isOverMaxItems, isValidWhatsapp, needsFullUrl } from '../../src/lib/contract/limits.ts'
 
 const L80 = { max: 80, singleLine: true }
 
@@ -42,4 +42,19 @@ test('WhatsApp: solo dígitos, de 8 a 15', () => {
   assert.equal(isValidWhatsapp('1'.repeat(16), d), false)
   assert.equal(isValidWhatsapp('+5491122334455', d), false)
   assert.equal(isValidWhatsapp('54 911 2233', d), false)
+})
+
+// Redes sociales: el contrato exige URL http/https completa; el aviso inmediato solo detecta lo que no la empieza bien
+// (espacios, credenciales y largo los sigue juzgando el validador real tras guardar).
+test('URL completa: vacío no avisa; usuario suelto, @usuario, dominio sin protocolo y otros protocolos sí', () => {
+  assert.equal(needsFullUrl(''), false)
+  assert.equal(needsFullUrl('   '), false)
+  assert.equal(needsFullUrl('minegocio'), true)
+  assert.equal(needsFullUrl('@minegocio'), true)
+  assert.equal(needsFullUrl('instagram.com/minegocio'), true)
+  assert.equal(needsFullUrl('ftp://instagram.com/x'), true)
+  assert.equal(needsFullUrl('https://instagram.com/minegocio'), false)
+  assert.equal(needsFullUrl('http://facebook.com/minegocio'), false)
+  assert.equal(needsFullUrl('HTTPS://instagram.com/minegocio'), false)
+  assert.equal(needsFullUrl('  https://instagram.com/minegocio  '), false)
 })

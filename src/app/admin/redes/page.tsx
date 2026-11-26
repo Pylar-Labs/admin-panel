@@ -5,12 +5,44 @@ import { toast } from 'sonner'
 import { useUser } from '@/hooks/useUser'
 import { getSiteConfig, upsertSiteConfig } from '@/lib/supabase/queries'
 import { saveErrorMessage } from '@/lib/utils'
+import { needsFullUrl } from '@/lib/contract/limits'
 import { SaveButton } from '@/components/admin/SaveButton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { SectionIssues } from '@/components/admin/SectionIssues'
 import { AtSign, Globe } from 'lucide-react'
+
+// El contrato pide la URL completa del perfil. Sin `type="url"` a propósito: el navegador bloquearía el envío y guardar nunca se bloquea.
+function UrlField({ id, label, icon, value, onChange, placeholder }: {
+  id: string
+  label: string
+  icon: React.ReactNode
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+}) {
+  const bad = needsFullUrl(value)
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id} className="flex items-center gap-2">{icon} {label}</Label>
+      <Input
+        id={id}
+        inputMode="url"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-invalid={bad || undefined}
+        aria-describedby={bad ? `${id}-hint` : undefined}
+      />
+      {bad && (
+        <p id={`${id}-hint`} className="text-xs text-destructive">
+          Pegá la dirección completa del perfil, empezando con https:// (por ejemplo {placeholder}). Se guarda igual, pero hace falta para publicar.
+        </p>
+      )}
+    </div>
+  )
+}
 
 export default function RedesPage() {
   const { siteId } = useUser()
@@ -31,13 +63,17 @@ export default function RedesPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!siteId) return
+    // Al pegar una URL es común que arrastre espacios; el contrato no admite ninguno.
+    const values = { instagram: instagram.trim(), facebook: facebook.trim() }
 
     startTransition(async () => {
-      const { error } = await upsertSiteConfig(siteId, { instagram, facebook })
+      const { error } = await upsertSiteConfig(siteId, values)
       if (error) {
         toast.error(saveErrorMessage(error))
         return
       }
+      setInstagram(values.instagram)
+      setFacebook(values.facebook)
       setSaved(true)
       toast.success('Redes sociales actualizadas')
       setTimeout(() => setSaved(false), 2500)
@@ -58,39 +94,26 @@ export default function RedesPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Tus perfiles</CardTitle>
-          <CardDescription>Ingresá solo el nombre de usuario o URL según corresponda.</CardDescription>
+          <CardDescription>Pegá la dirección completa de cada perfil (empieza con https://). Si no tenés uno, dejalo vacío.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="instagram" className="flex items-center gap-2">
-                <AtSign size={15} /> Usuario de Instagram
-              </Label>
-              <div className="flex items-center">
-                <span className="flex h-8 items-center rounded-l-lg border border-r-0 border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-500">
-                  @
-                </span>
-                <Input
-                  id="instagram"
-                  value={instagram}
-                  onChange={(e) => setInstagram(e.target.value)}
-                  placeholder="minegocio"
-                  className="rounded-l-none"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="facebook" className="flex items-center gap-2">
-                <Globe size={15} /> Página de Facebook
-              </Label>
-              <Input
-                id="facebook"
-                value={facebook}
-                onChange={(e) => setFacebook(e.target.value)}
-                placeholder="https://facebook.com/minegocio"
-              />
-            </div>
+            <UrlField
+              id="instagram"
+              label="Instagram (dirección del perfil)"
+              icon={<AtSign size={15} />}
+              value={instagram}
+              onChange={setInstagram}
+              placeholder="https://instagram.com/minegocio"
+            />
+            <UrlField
+              id="facebook"
+              label="Facebook (dirección de la página)"
+              icon={<Globe size={15} />}
+              value={facebook}
+              onChange={setFacebook}
+              placeholder="https://facebook.com/minegocio"
+            />
 
             <SaveButton isPending={isPending} saved={saved} />
           </form>
