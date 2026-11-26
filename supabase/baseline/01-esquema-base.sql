@@ -1,14 +1,16 @@
--- LÍNEA BASE del esquema para la BASE DE PRUEBAS (proyecto «PylarLabs-test»). NO se aplica nunca en producción.
--- Reproduce el estado de producción ANTERIOR a la spec 004: las cinco tablas se crearon fuera de las migraciones, y esas
--- migraciones son incrementales. Orden para armar una base de pruebas nueva:
+-- LÍNEA BASE del esquema, para crear una base de datos NUEVA (p. ej. la de producción real el día que se pase a producción).
+-- NO se aplica en PylarLabs: esa base ya existe (es la de desarrollo y pruebas).
+-- Reproduce el estado de PylarLabs ANTERIOR a la spec 004: las cinco tablas se crearon fuera de las migraciones, y esas
+-- migraciones son incrementales. Orden para armar una base nueva:
 --   1. este archivo
 --   2. supabase/migrations/20261123010000_endurecer_esquema_multicliente.sql   (spec 004: políticas, permisos, índices)
 --   3. supabase/migrations/20261124010000_campos_del_contrato.sql              (spec 001)
 --   4. supabase/migrations/20261125010000_site_deploy.sql                      (spec 002, paso A)
 --   5. supabase/migrations/20261125020000_quitar_hook_de_site_config.sql       (spec 002, paso B)
--- y las migraciones nuevas que haya, en orden de fecha. Después: `npm run test:db` debe dar todo en verde; esa suite fija las
--- columnas exactas de cada tabla y el comportamiento de las políticas, así que detecta cualquier diferencia con producción.
--- Idempotente (if not exists / on conflict). Extraído de producción el 2026-11-26 (columnas, restricciones y bucket).
+-- y las migraciones nuevas que haya, en orden de fecha. Después, `npm run test:db` apuntando a esa base nueva debe dar todo en
+-- verde: esa suite fija las columnas exactas de cada tabla y el comportamiento de las políticas, así que detecta cualquier
+-- diferencia con PylarLabs. Idempotente (if not exists / on conflict). Extraído de PylarLabs el 2026-11-26 (columnas,
+-- restricciones y bucket). SIN PROBAR todavía contra una base vacía: se prueba al crear la de producción.
 
 create table if not exists public.site_config (
   id                 uuid primary key default gen_random_uuid(),

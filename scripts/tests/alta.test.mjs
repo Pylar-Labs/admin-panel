@@ -1,5 +1,5 @@
-// Prueba del alta de clientes (spec 005). Corre SOLO contra la base de PRUEBAS (`.env.test.local`, PYLAR_TEST_DB=1):
-// se niega a correr contra producción (ver `_guard.mjs`) y se detiene antes de escribir nada.
+// Prueba del alta de clientes (spec 005). Corre contra la base real de `.env.local`,
+// y SOLO si es PylarLabs (si no, se detiene antes de escribir nada).
 // No envía correos: la invitación se sustituye por `generateLink` (crea el mismo usuario sin enviar nada).
 // Prefijo propio, distinto del de la prueba de aislamiento, para que ninguna limpieza borre lo de la otra.
 // Uso: npm run test:db
@@ -7,13 +7,13 @@ import { describe, test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
-import { assertTestDatabase } from './_guard.mjs'
 import { onboardClient, listClients, validateInput } from '../../src/lib/clients/onboarding.ts'
 import { isAdminUser } from '../../src/lib/auth/roles.ts'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const EXPECTED_HOST = 'eplnsjdvjawwijokoerk.supabase.co'
 const PREFIX = 'zz-alta-'
 const EMAIL_DOMAIN = '@example.com'
 const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } }
@@ -104,8 +104,8 @@ async function makeUser(label, { app_metadata = {}, user_metadata = {} } = {}) {
 
 describe('alta de clientes (spec 005)', () => {
   before(async () => {
-    assertTestDatabase(SUPABASE_URL)
-    assert.ok(ANON_KEY && SERVICE_KEY, 'Faltan las claves de Supabase de la base de pruebas en .env.test.local')
+    assert.ok(SUPABASE_URL && ANON_KEY && SERVICE_KEY, 'Faltan variables de entorno de Supabase en .env.local')
+    assert.equal(new URL(SUPABASE_URL).host, EXPECTED_HOST, `.env.local no apunta a PylarLabs (${EXPECTED_HOST}); no se escribe nada`)
     ctx.runId = randomUUID().slice(0, 8)
     ctx.svc = createClient(SUPABASE_URL, SERVICE_KEY, clientOptions)
     ctx.ok = facade(ctx.svc)

@@ -1,5 +1,5 @@
-// Prueba de aislamiento multicliente (spec 004). Corre SOLO contra la base de PRUEBAS (`.env.test.local`, PYLAR_TEST_DB=1):
-// se niega a correr contra producción (ver `_guard.mjs`) y se detiene antes de escribir nada.
+// Prueba de aislamiento multicliente (spec 004). Corre contra la base real de `.env.local`,
+// y SOLO si es PylarLabs (si no, se detiene antes de escribir nada).
 // Crea usuarios, filas y archivos con un prefijo que ningún cliente usaría y los borra siempre al terminar (aunque falle).
 // Uso: npm run test:db
 import { describe, test, before, after } from 'node:test'
@@ -7,7 +7,6 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
-import { assertTestDatabase } from './_guard.mjs'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -16,6 +15,8 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 // Prefijo improbable: la limpieza borra todo lo que empiece así, y un cliente real no debe poder coincidir.
 const PREFIX = 'zz-aislamiento-'
 const EMAIL_DOMAIN = '@example.com'
+// Única base donde esta prueba puede escribir. Ya se escribió por error en la de la landing.
+const EXPECTED_HOST = 'eplnsjdvjawwijokoerk.supabase.co'
 // Error que devuelve la API cuando el rol no tiene permiso sobre la tabla (no solo "0 filas").
 const DENIED = '42501'
 // Bucket que usa el panel y que existe en PylarLabs (en la base de la landing se llama `site-images`).
@@ -130,8 +131,8 @@ async function makeUser(label, { siteId, role } = {}) {
 
 describe('aislamiento multicliente (spec 004)', () => {
   before(async () => {
-    assertTestDatabase(SUPABASE_URL)
-    assert.ok(ANON_KEY && SERVICE_KEY, 'Faltan las claves de Supabase de la base de pruebas en .env.test.local')
+    assert.ok(SUPABASE_URL && ANON_KEY && SERVICE_KEY, 'Faltan variables de entorno de Supabase en .env.local')
+    assert.equal(new URL(SUPABASE_URL).host, EXPECTED_HOST, `.env.local no apunta a PylarLabs (${EXPECTED_HOST}); no se escribe nada`)
     ctx.runId = randomUUID().slice(0, 8)
     ctx.svc = createClient(SUPABASE_URL, SERVICE_KEY, clientOptions)
     ctx.anon = createClient(SUPABASE_URL, ANON_KEY, clientOptions)
