@@ -6,7 +6,7 @@ import { useUser } from '@/hooks/useUser'
 import { getSiteConfig, upsertSiteConfig, getGallery, addGalleryImage, deleteGalleryImage } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
 import { saveErrorMessage } from '@/lib/utils'
-import { storagePathFromUrl } from '@/lib/storage'
+import { safeFileName, storagePathFromUrl } from '@/lib/storage'
 import { SaveButton } from '@/components/admin/SaveButton'
 import { ImageUpload } from '@/components/admin/ImageUpload'
 import { Button } from '@/components/ui/button'
@@ -86,7 +86,8 @@ export default function ImagenesPage() {
     const supabase = createClient()
     const results = await Promise.all(
       Array.from(files).map(async (file) => {
-        const path = `${siteId}/gallery/${Date.now()}-${file.name}`
+        // El nombre se sanea: el almacenamiento rechaza claves con ñ, acentos y símbolos (InvalidKey).
+        const path = `${siteId}/gallery/${Date.now()}-${safeFileName(file.name)}`
         const { error: upErr } = await supabase.storage.from('images').upload(path, file, { upsert: true })
         if (upErr) return null
         const { data } = supabase.storage.from('images').getPublicUrl(path)
