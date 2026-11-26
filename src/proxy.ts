@@ -1,7 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+// Comprobación optimista de sesión para /admin y /login (Next 16: antes `middleware`; ahora corre en Node.js, no en Edge).
+// La seguridad real está en RLS y en requireAdmin()/requireSiteUser(), no aquí.
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
