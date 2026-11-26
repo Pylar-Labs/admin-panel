@@ -6,6 +6,7 @@ import { useUser } from '@/hooks/useUser'
 import { getSiteConfig, upsertSiteConfig, getGallery, addGalleryImage, deleteGalleryImage } from '@/lib/supabase/queries'
 import { createClient } from '@/lib/supabase/client'
 import { saveErrorMessage } from '@/lib/utils'
+import { safeFileName, storagePathFromUrl } from '@/lib/storage'
 import { SaveButton } from '@/components/admin/SaveButton'
 import { ImageUpload } from '@/components/admin/ImageUpload'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,9 @@ export default function ImagenesPage() {
   const { siteId } = useUser()
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [heroUrl, setHeroUrl] = useState<string | null>(null)
+  // Lo que hay GUARDADO del logo y la imagen principal: sirve para saber, al guardar, si se quitó una y hay que borrar su archivo.
+  const [savedLogo, setSavedLogo] = useState<string | null>(null)
+  const [savedHero, setSavedHero] = useState<string | null>(null)
   const [gallery, setGallery] = useState<GalleryImage[]>([])
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -39,6 +43,8 @@ export default function ImagenesPage() {
     if (!loaded) return
     setLogoUrl(loaded.config?.logo_url ?? null)
     setHeroUrl(loaded.config?.hero_image_url ?? null)
+    setSavedLogo(loaded.config?.logo_url ?? null)
+    setSavedHero(loaded.config?.hero_image_url ?? null)
     setGallery(loaded.imgs)
   }, [])
 
@@ -48,12 +54,26 @@ export default function ImagenesPage() {
     fetchData().then(apply)
   }, [fetchData, apply])
 
+  // Borra el archivo del bucket al quitar una imagen. Mejor esfuerzo y SIEMPRE después de quitar la referencia de la base:
+  // si falla, queda un archivo suelto (como antes), nunca una referencia a un archivo que no existe. Solo borra dentro de la
+  // carpeta del sitio. (Las fotos del catálogo no se borran: van en lo publicado y romperían la web hasta volver a publicar.)
+  async function removeFile(url: string | null | undefined) {
+    if (!siteId) return
+    const path = storagePathFromUrl(url, 'images', siteId)
+    if (path) await createClient().storage.from('images').remove([path])
+  }
+
   function handleSaveMain(e: React.FormEvent) {
     e.preventDefault()
     if (!siteId) return
     startTransition(async () => {
       const { error } = await upsertSiteConfig(siteId, { logo_url: logoUrl, hero_image_url: heroUrl })
       if (error) { toast.error(saveErrorMessage(error)); return }
+      // El archivo se borra recién ahora, con la referencia ya quitada de la base (el «×» solo vacía la pantalla).
+      if (savedLogo && !logoUrl) await removeFile(savedLogo)
+      if (savedHero && !heroUrl) await removeFile(savedHero)
+      setSavedLogo(logoUrl)
+      setSavedHero(heroUrl)
       setSaved(true)
       toast.success('Imágenes guardadas')
       setTimeout(() => setSaved(false), 2500)
@@ -66,7 +86,8 @@ export default function ImagenesPage() {
     const supabase = createClient()
     const results = await Promise.all(
       Array.from(files).map(async (file) => {
-        const path = `${siteId}/gallery/${Date.now()}-${file.name}`
+        // El nombre se sanea: el almacenamiento rechaza claves con ñ, acentos y símbolos (InvalidKey).
+        const path = `${siteId}/gallery/${Date.now()}-${safeFileName(file.name)}`
         const { error: upErr } = await supabase.storage.from('images').upload(path, file, { upsert: true })
         if (upErr) return null
         const { data } = supabase.storage.from('images').getPublicUrl(path)
@@ -80,7 +101,7 @@ export default function ImagenesPage() {
       if (failed) {
         toast.error(saveErrorMessage(failed.error))
       } else {
-        toast.success(`${urls.length} imagen${urls.length > 1 ? 'es' : ''} agregada${urls.length > 1 ? 's' : ''}`)
+        toast.success(urls.length > 1 ? `${urls.length} imágenes agregadas` : '1 imagen agregada')
       }
       load()
     }
@@ -89,9 +110,11 @@ export default function ImagenesPage() {
   }
 
   function handleDelete(id: string) {
+    const url = gallery.find((g) => g.id === id)?.image_url
     startTransition(async () => {
       const { error } = await deleteGalleryImage(id)
       if (error) { toast.error('Error al eliminar.'); return }
+      await removeFile(url)
       toast.success('Imagen eliminada')
       setConfirmId(null)
       load()
