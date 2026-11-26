@@ -30,6 +30,7 @@ Panel donde cada cliente de la agencia edita los datos de SU web (negocio, imág
 - Los campos de URL (redes sociales, botones del inicio) guardan la URL http/https completa que exige el contrato: el panel avisa mientras se escribe (`needsFullUrl`) y recorta espacios, pero no convierte usuarios en URLs ni bloquea el guardado; el validador de la publicación juzga el resto.
 - `src/lib/contract/contract.generated.ts` y `src/lib/contract/vendor/` se generan con `npm run contract:sync` desde `../template-landing`: no se editan a mano (un test falla si se desactualizan).
 - Migraciones (`supabase/migrations/`): solo se aplican con aprobación explícita; aditivas siempre que se pueda, idempotentes y con la reversa documentada en comentarios. Las que borran datos o columnas van aparte.
+- Entornos (decisión del usuario, 2026-11-26): el proyecto Supabase **PylarLabs** (`eplnsjdvjawwijokoerk`), el panel desplegado en Vercel y los repos `zz-*` son el entorno de DESARROLLO y PRUEBAS; no hay producción real todavía. `test:db` corre contra PylarLabs a propósito. Al salir a producción se crea una base NUEVA con `supabase/baseline/01-esquema-base.sql` (las cinco tablas no salen de las migraciones) más todas las migraciones en orden de fecha, con proyecto, claves, variables de Vercel y tokens propios.
 
 ## Forma de trabajar
 - ANTES DE TODO: ejecuta `node scripts/check-setup.mjs`. Si falla, corre `/init-project` y no escribas código hasta que pase.

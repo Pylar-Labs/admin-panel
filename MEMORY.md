@@ -21,7 +21,7 @@
 
 ## Supabase
 - Proyecto del panel: **PylarLabs** `eplnsjdvjawwijokoerk` (org `cltjeetqtidykxvnntwd`). «Web Landings Project» `zogzzwygaaxwxendrntv` (otra cuenta/org) es la base de la landing y NO se usa. `.env.local` apunta a PylarLabs.
-- Estado: seis tablas (`site_config`, `gallery`, `services`, `products`, `testimonials` y `site_deploy`, esta solo de servidor) con RLS, 0 filas (las pruebas las limpian); 1 usuario real sin rol admin y sin sitio; bucket `images` público, 0 archivos.
+- Estado: seis tablas (`site_config`, `gallery`, `services`, `products`, `testimonials` y `site_deploy`, esta solo de servidor) con RLS; datos de prueba: 2 clientes («Instinto Canino», «Prueba Producción»; `site_deploy` sin filas) y 3 usuarios (el admin `pylarlabs@gmail.com` y los 2 clientes); bucket `images` público (5 MB, jpeg/png/webp/gif), sin archivos. Las migraciones aplicadas por MCP figuran en su historial (004, 001, 002A); la 002B la aplicó el usuario a mano y NO consta ahí.
 - El conector ve una cuenta u otra según con cuál se reconecte (`/mcp`). `apply_migration` funciona; `execute_sql` con DDL pide confirmación manual (expira a los 10 min). Migraciones solo con aprobación explícita.
 
 ## Pendientes
@@ -30,7 +30,7 @@
 - Fuera de la 003, vistos al verificar: el aviso «2 imagenes agregadas» no lleva tilde; quitar una foto o el logo borra solo la referencia, el archivo queda en el almacenamiento (huérfano); `/admin/cuenta` solo se abrió, no se revisó a fondo; `middleware` → `proxy` (aviso de Next 16, ese archivo protege `/admin`) para otra spec.
 - 002: el repo `Pylar-Labs/zz-web-prueba`, el proyecto de Vercel `zz-web-prueba` (equipo `pylar-labs-projects`, `prj_tVLOXiL2jHoItDohVbnvWV5NIPDu`) y los tokens de prueba SE DEJAN para pruebas posteriores; se borran al terminar el proyecto (decisión del usuario, 2026-11-26). Pendiente: rotación de los tokens y cargar las variables de entorno en el hosting del panel.
 - instalar el hook `SessionStart` (denegado en esta sesión).
-- La prueba de base corre sobre la base real (datos de prueba que limpia); con clientes reales conviene una base de pruebas aparte.
+- **Entornos (decisión del usuario, 2026-11-26): la base actual (PylarLabs `eplnsjdvjawwijokoerk`), el panel en Vercel y los repos `zz-*` SON el entorno de desarrollo y pruebas; no hay producción real todavía.** No se crea una base de pruebas aparte: `test:db` corre contra PylarLabs a propósito (los 2 clientes son de prueba). Al salir a producción: base Supabase NUEVA con `supabase/baseline/01-esquema-base.sql` (las 5 tablas no salían de las migraciones y la 004 no activa la RLS; la línea base lo hace; sin probar contra una base vacía) + las 4 migraciones en orden de fecha, y proyecto, claves, variables de Vercel, tokens, SMTP y dominio propios (ver decisiones diferidas). Se probó una guarda contra producción y se retiró por esta decisión.
 
 ## Errores a evitar
 - No usar `user_metadata` para `site_id` ni rol. No asumir APIs de Next.js 16: leer `node_modules/next/dist/docs/`.
