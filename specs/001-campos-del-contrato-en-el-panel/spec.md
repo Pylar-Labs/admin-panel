@@ -55,6 +55,6 @@ La web de cada cliente (la landing de la agencia) solo acepta datos que cumplen 
 - Prueba de aislamiento entre dos clientes sobre lo nuevo.
 - Revisión en el navegador de cada sección afectada (escritorio y 375 px, consola sin errores).
 
-## Dudas abiertas
-- [NECESITA ACLARACIÓN] ¿Cómo obtiene el panel los límites del contrato sin copiarlos a mano (el contrato vive en el repositorio del template)? Condiciona el plan de esta spec y de la 002.
-- [NECESITA ACLARACIÓN] Lista exacta de secciones del panel donde se agregan los campos nuevos (¿"Mi negocio" para quiénes somos e inicio, "Servicios" para el ícono, "Catálogo" para moneda?).
+## Dudas resueltas
+- (2026-11-24, decidido en el plan) Límites: un script los extrae del JSON Schema y las descripciones del contrato del template (copia generada, con test de cobertura); el template no se toca.
+- (2026-11-24, decidido en el plan) Secciones: Mi negocio (quiénes somos, cifras, destacados, botones, idioma, títulos de sección), Servicios (ícono), Catálogo (moneda, mostrar precios, agrupar, texto del botón) y Testimonios (rol).

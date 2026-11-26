@@ -32,11 +32,13 @@ const ctx = {}
 
 // RF-2: campos exactos de cada conjunto (los del modelo actual del panel, y ninguno más).
 const EXPECTED_COLUMNS = {
-  site_config: ['id', 'site_id', 'business_name', 'tagline', 'description', 'phone', 'whatsapp', 'email', 'address', 'hours', 'instagram', 'facebook', 'logo_url', 'hero_image_url', 'hero_title', 'hero_subtitle', 'map_embed_url', 'vercel_deploy_hook', 'active', 'created_at'],
+  site_config: ['id', 'site_id', 'business_name', 'tagline', 'description', 'phone', 'whatsapp', 'email', 'address', 'hours', 'instagram', 'facebook', 'logo_url', 'hero_image_url', 'hero_title', 'hero_subtitle', 'map_embed_url', 'vercel_deploy_hook', 'active', 'created_at',
+    // spec 001
+    'language', 'about_title', 'about_body', 'about_stats', 'about_highlights', 'hero_cta_primary_label', 'hero_cta_primary_href', 'hero_cta_secondary_label', 'hero_cta_secondary_href', 'currency', 'show_prices', 'group_by_category', 'product_cta_label', 'section_titles'],
   gallery: ['id', 'site_id', 'image_url', 'caption', 'order', 'active'],
   services: ['id', 'site_id', 'title', 'description', 'icon', 'order', 'active'],
-  products: ['id', 'site_id', 'name', 'description', 'price', 'price_visible', 'category', 'image_url', 'whatsapp_message', 'order', 'active'],
-  testimonials: ['id', 'site_id', 'author_name', 'text', 'rating', 'order', 'active'],
+  products: ['id', 'site_id', 'name', 'description', 'price', 'price_visible', 'category', 'image_url', 'whatsapp_message', 'order', 'active', 'slug'],
+  testimonials: ['id', 'site_id', 'author_name', 'text', 'rating', 'order', 'active', 'role'],
 }
 const FIVE_TABLES = Object.keys(EXPECTED_COLUMNS)
 
@@ -380,6 +382,54 @@ describe('aislamiento multicliente (spec 004)', () => {
     assert.ifError(error)
     const { data } = await ctx.svc.from('site_config').select('site_id').eq('site_id', site)
     assert.equal(data.length, 1)
+  })
+
+  // ── Spec 001 · campos del contrato (RF-10, RF-11) ──────────────────────────
+
+  const NEW_FIELDS = {
+    site_config: { language: 'en', about_title: 'Quiénes somos', about_body: 'Texto', about_stats: [{ value: '+14', label: 'años' }], about_highlights: ['Uno'], hero_cta_primary_label: 'Contactanos', hero_cta_primary_href: '#contacto', hero_cta_secondary_label: 'Ver', hero_cta_secondary_href: '#servicios', currency: 'USD', show_prices: false, group_by_category: true, product_cta_label: 'Consultar', section_titles: { services: { title: 'Lo que hacemos' } } },
+    testimonials: { role: 'Cliente' },
+    products: { slug: 'campo-nuevo' },
+  }
+
+  for (const [table, fields] of Object.entries(NEW_FIELDS)) {
+    test(`RF-10: A edita los campos nuevos de lo suyo en ${table}`, async () => {
+      const ids = await seed()
+      const { data, error } = await ctx.a.client.from(table).update(fields).eq('id', ids.a[table]).select('id')
+      assert.ifError(error)
+      assert.equal(data.length, 1, 'A no pudo editar los campos nuevos de su fila')
+      const { data: after } = await ctx.svc.from(table).select(Object.keys(fields).join(',')).eq('id', ids.a[table]).single()
+      assert.deepEqual(after, fields)
+    })
+
+    test(`RF-10: A no lee ni edita los campos nuevos de B en ${table}`, async () => {
+      const ids = await seed()
+      const cols = Object.keys(fields).join(',')
+      const read = await ctx.a.client.from(table).select(`site_id, ${cols}`)
+      assert.ifError(read.error)
+      assert.ok(read.data.every((r) => r.site_id === ctx.siteA), 'A ve campos nuevos de otro sitio')
+      const { data, error } = await ctx.a.client.from(table).update(fields).eq('id', ids.b[table]).select('id')
+      assert.ok(error || data.length === 0, 'A editó campos nuevos de B')
+    })
+  }
+
+  test('RF-10: una fila nueva de configuración trae los valores por defecto', async () => {
+    const site = `${PREFIX}${ctx.runId}-defecto`
+    const { data, error } = await ctx.svc.from('site_config').insert({ site_id: site }).select('*').single()
+    assert.ifError(error)
+    assert.equal(data.language, 'es')
+    assert.deepEqual([data.about_stats, data.about_highlights, data.section_titles], [[], [], {}])
+    assert.deepEqual([data.currency, data.show_prices, data.group_by_category], ['ARS', true, false])
+    assert.equal(data.about_title, null)
+  })
+
+  test('RF-5: el slug es único por sitio y puede repetirse entre sitios', async () => {
+    await seed()
+    const slug = 'mismo-slug'
+    assert.ifError((await ctx.svc.from('products').insert({ ...NEW_ROW.products(ctx.siteA), slug })).error)
+    const dup = await ctx.svc.from('products').insert({ ...NEW_ROW.products(ctx.siteA), slug })
+    assert.equal(dup.error?.code, '23505', 'se aceptó un slug repetido en el mismo sitio')
+    assert.ifError((await ctx.svc.from('products').insert({ ...NEW_ROW.products(ctx.siteB), slug })).error)
   })
 
   // ── T8 · almacenamiento de imágenes (RF-13) ────────────────────────────────

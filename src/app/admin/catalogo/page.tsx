@@ -3,21 +3,30 @@
 import { useState, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useUser } from '@/hooks/useUser'
-import { getProducts, upsertProduct, deleteProduct, getSiteConfig } from '@/lib/supabase/queries'
+import { getProducts, upsertProduct, deleteProduct, getSiteConfig, upsertSiteConfig } from '@/lib/supabase/queries'
 import { saveErrorMessage, triggerVercelDeploy } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { SaveButton } from '@/components/admin/SaveButton'
 import { ImageUpload } from '@/components/admin/ImageUpload'
+import { LimitedField } from '@/components/admin/LimitedField'
+import { NativeSelect } from '@/components/admin/NativeSelect'
+import { CONTRACT } from '@/lib/contract/contract.generated'
+import { isOverMaxItems } from '@/lib/contract/limits'
+import { makeSlug } from '@/lib/slug'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { Product } from '@/types/database'
 
 const EMPTY_FORM = { name: '', description: '', price: '', category: '', order: 0, image_url: '' }
+const EMPTY_CATALOG = { currency: 'ARS', show_prices: true, group_by_category: false, product_cta_label: '' }
+const L = CONTRACT.limits
+// El contrato no admite decimales en estas monedas (lo dice en la descripción del precio).
+const NO_DECIMALS = ['CLP', 'COP']
 
 export default function CatalogoPage() {
   const { siteId } = useUser()
@@ -32,6 +41,9 @@ export default function CatalogoPage() {
   const [photoKey, setPhotoKey] = useState('')
   const [saved, setSaved] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [catalog, setCatalog] = useState(EMPTY_CATALOG)
+  const [savedCatalog, setSavedCatalog] = useState(false)
+  const [isPendingCatalog, startCatalogTransition] = useTransition()
 
   // Pedir los datos y aplicarlos van separados: el estado se guarda dentro de un .then, no dentro del efecto.
   const fetchData = useCallback(async () => {
@@ -44,6 +56,10 @@ export default function CatalogoPage() {
     if (!loaded) return
     setItems(loaded.data)
     setDeployHook(loaded.config?.vercel_deploy_hook ?? null)
+    if (loaded.config) {
+      const c = loaded.config
+      setCatalog({ currency: c.currency, show_prices: c.show_prices, group_by_category: c.group_by_category, product_cta_label: c.product_cta_label ?? '' })
+    }
   }, [])
 
   const load = useCallback(() => fetchData().then(apply), [fetchData, apply])
@@ -88,6 +104,8 @@ export default function CatalogoPage() {
         category: form.category || null,
         order: form.order,
         image_url: form.image_url || null,
+        // El identificador se crea una sola vez y no cambia al renombrar (RF-5).
+        ...(editing ? {} : { slug: makeSlug(form.name, items.flatMap((i) => (i.slug ? [i.slug] : []))) }),
       }
       const { error } = await upsertProduct(siteId, payload)
       if (error) { toast.error(saveErrorMessage(error)); return }
@@ -97,6 +115,19 @@ export default function CatalogoPage() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
       load()
+    })
+  }
+
+  function handleSaveCatalog(e: React.FormEvent) {
+    e.preventDefault()
+    if (!siteId) return
+    startCatalogTransition(async () => {
+      const { error } = await upsertSiteConfig(siteId, { ...catalog, product_cta_label: catalog.product_cta_label.trim() ? catalog.product_cta_label : null })
+      if (error) { toast.error(saveErrorMessage(error)); return }
+      await triggerVercelDeploy(deployHook)
+      setSavedCatalog(true)
+      toast.success('Ajustes del catálogo guardados')
+      setTimeout(() => setSavedCatalog(false), 2500)
     })
   }
 
@@ -130,6 +161,40 @@ export default function CatalogoPage() {
           <Plus size={15} /> Agregar
         </Button>
       </div>
+
+      <form onSubmit={handleSaveCatalog}>
+        <Card>
+          <CardHeader><CardTitle className="text-base">Ajustes del catálogo</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="cat-currency">Moneda</Label>
+                <NativeSelect id="cat-currency" value={catalog.currency} onChange={(e) => setCatalog((c) => ({ ...c, currency: e.target.value }))}>
+                  {CONTRACT.currencies.map((code) => <option key={code} value={code}>{code}</option>)}
+                </NativeSelect>
+                {NO_DECIMALS.includes(catalog.currency) && <p className="text-xs text-zinc-500">En {catalog.currency} los precios van sin decimales.</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cat-cta">Texto del botón de consulta (opcional)</Label>
+                <LimitedField id="cat-cta" value={catalog.product_cta_label} onChange={(v) => setCatalog((c) => ({ ...c, product_cta_label: v }))} limit={L['productGridConfig.ctaLabel']} placeholder="Consultar por WhatsApp" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="cat-show-prices">Mostrar precios en la web</Label>
+              <Switch id="cat-show-prices" checked={catalog.show_prices} onCheckedChange={(v) => setCatalog((c) => ({ ...c, show_prices: v }))} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="cat-group">Agrupar los productos por categoría</Label>
+              <Switch id="cat-group" checked={catalog.group_by_category} onCheckedChange={(v) => setCatalog((c) => ({ ...c, group_by_category: v }))} />
+            </div>
+            <SaveButton isPending={isPendingCatalog} saved={savedCatalog} />
+          </CardContent>
+        </Card>
+      </form>
+
+      {isOverMaxItems(items.length, CONTRACT.maxItems.products) && (
+        <p className="text-sm text-destructive">Máximo {CONTRACT.maxItems.products} productos: se guardan igual, pero hay que dejar {CONTRACT.maxItems.products} para publicar.</p>
+      )}
 
       {categories.length > 1 && (
         <div className="flex flex-wrap gap-2">
@@ -171,7 +236,7 @@ export default function CatalogoPage() {
                   {item.category && <Badge variant="secondary" className="shrink-0 text-xs">{item.category}</Badge>}
                 </div>
                 {item.description && <p className="mt-0.5 line-clamp-1 text-xs text-zinc-500">{item.description}</p>}
-                {item.price != null && <p className="mt-1 text-xs font-medium text-zinc-700">${item.price.toLocaleString('es-AR')}</p>}
+                {item.price != null && <p className="mt-1 text-xs font-medium text-zinc-700">{item.price.toLocaleString('es-AR', { style: 'currency', currency: catalog.currency })}</p>}
               </div>
               <div className="absolute right-3 bottom-3 flex items-center gap-1.5">
                 <Switch checked={item.active ?? false} onCheckedChange={() => handleToggle(item)} aria-label="Activo" />
@@ -201,20 +266,21 @@ export default function CatalogoPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="prod-name">Nombre</Label>
-              <Input id="prod-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ej: Torta de chocolate" required />
+              <LimitedField id="prod-name" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} limit={L['products[].name']} placeholder="Ej: Torta de chocolate" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="prod-desc">Descripción (opcional)</Label>
-              <Textarea id="prod-desc" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Descripción breve..." rows={2} />
+              <Label htmlFor="prod-desc">Descripción</Label>
+              <LimitedField id="prod-desc" multiline rows={2} value={form.description} onChange={(v) => setForm((f) => ({ ...f, description: v }))} limit={L['products[].description']} placeholder="Descripción breve..." />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="prod-price">Precio (opcional)</Label>
-                <Input id="prod-price" type="number" min={0} step="0.01" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} placeholder="0.00" />
+                <Label htmlFor="prod-price">Precio{catalog.show_prices ? ' (obligatorio para publicar)' : ' (opcional)'}</Label>
+                <Input id="prod-price" type="number" min={0} step={NO_DECIMALS.includes(catalog.currency) ? '1' : '0.01'} value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} placeholder="0.00" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="prod-cat">Categoría</Label>
-                <Input id="prod-cat" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} placeholder="Ej: Postres" />
+                <LimitedField id="prod-cat" value={form.category} onChange={(v) => setForm((f) => ({ ...f, category: v }))} limit={L['products[].category']} placeholder="Ej: Postres" />
+                {catalog.group_by_category && !form.category && <p className="text-xs text-destructive">Obligatoria para publicar: el catálogo agrupa por categoría.</p>}
               </div>
             </div>
             <div className="space-y-2">

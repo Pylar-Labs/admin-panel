@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "contract:sync": "node scripts/sync-contract.mjs",
+    "test": "node --test scripts/tests/contract-sync.test.mjs scripts/tests/limits.test.mjs scripts/tests/slug.test.mjs",
     "test:db": "node --env-file=.env.local --test scripts/tests/aislamiento.test.mjs scripts/tests/alta.test.mjs"
   },
   "dependencies": {
