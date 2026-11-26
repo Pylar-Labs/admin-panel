@@ -13,7 +13,7 @@ Panel donde cada cliente de la agencia edita los datos de SU web (negocio, imág
 - `docs/constitution.md` principios · `specs/NNN-*/` specs · `MEMORY.md` memoria entre sesiones
 
 ## Comandos
-- Ejecutar: `npm run dev` (localhost:3000) · Lint: `npm run lint` · Build: `npm run build` (incluye tipos) · Tests: `npm run test` (módulos puros y flujo de publicación con dependencias falsas, sin red ni base) y `npm run test:db` (aislamiento y alta de clientes, contra la base real de `.env.local`; solo escribe en PylarLabs y limpia lo suyo) · Contrato: `npm run contract:sync` regenera lo copiado de `../template-landing`
+- Ejecutar: `npm run dev` (localhost:3000) · Lint: `npm run lint` · Build: `npm run build` (incluye tipos) · Tests: `npm run test` (módulos puros y flujo de publicación con dependencias falsas, sin red ni base) y `npm run test:db` (aislamiento y alta de clientes: corre SOLO contra la base de PRUEBAS de `.env.test.local`, que debe declarar `PYLAR_TEST_DB=1`; se niega a correr contra producción y limpia lo suyo) · `npm run dev:test` (el panel contra la base de pruebas, para verificar la interfaz sin tocar clientes reales) · Contrato: `npm run contract:sync` regenera lo copiado de `../template-landing`
 
 ## Convenciones
 - Código en inglés; documentación e interfaz en español. Archivo de referencia del estilo: `src/app/admin/layout.tsx`
@@ -29,7 +29,8 @@ Panel donde cada cliente de la agencia edita los datos de SU web (negocio, imág
 - Publicar: guardar NO despliega; la pantalla `/admin/publicar` arma el archivo, lo valida y hace commit a `src/content/site.data.json` del repo de la web (`src/lib/publish/`). Los datos de entrega por sitio (repo, rama, proyecto de Vercel, enlace) se cargan con `node --env-file=.env.local scripts/set-site-deploy.mjs <site_id> --repo o/n …`.
 - Los campos de URL (redes sociales, botones del inicio) guardan la URL http/https completa que exige el contrato: el panel avisa mientras se escribe (`needsFullUrl`) y recorta espacios, pero no convierte usuarios en URLs ni bloquea el guardado; el validador de la publicación juzga el resto.
 - `src/lib/contract/contract.generated.ts` y `src/lib/contract/vendor/` se generan con `npm run contract:sync` desde `../template-landing`: no se editan a mano (un test falla si se desactualizan).
-- Migraciones (`supabase/migrations/`): solo se aplican con aprobación explícita; aditivas siempre que se pueda, idempotentes y con la reversa documentada en comentarios. Las que borran datos o columnas van aparte.
+- Migraciones (`supabase/migrations/`): solo se aplican con aprobación explícita; aditivas siempre que se pueda, idempotentes y con la reversa documentada en comentarios. Las que borran datos o columnas van aparte. **Se aplican primero a la base de pruebas** (proyecto `PylarLabs-test`) y se corre `npm run test:db`; solo con eso en verde y con tu aprobación se aplican a producción.
+- Base de pruebas (`PylarLabs-test`): `.env.test.local` (ignorado por git, nunca se sube) lleva su URL y sus claves más `PYLAR_TEST_DB=1`. Se recrea aplicando `supabase/test-baseline/01-esquema-base.sql` (las cinco tablas se crearon fuera de las migraciones) y después TODAS las migraciones en orden de fecha. `scripts/tests/_guard.mjs` impide que `test:db` y `dev:test` corran contra producción. Los scripts de operación (`set-admin`, `set-site-deploy`) siguen apuntando a producción a propósito.
 
 ## Forma de trabajar
 - ANTES DE TODO: ejecuta `node scripts/check-setup.mjs`. Si falla, corre `/init-project` y no escribas código hasta que pase.
@@ -47,4 +48,4 @@ Panel donde cada cliente de la agencia edita los datos de SU web (negocio, imág
 
 ## Verificación
 - `npm run lint` y `npm run build` sin errores; `npm run test` y `npm run test:db` en verde. (El build puede fallar a veces al descargar Google Fonts: reintentar antes de investigar.)
-- UI: MCP Chrome DevTools: abrir `npm run dev`, entrar con un usuario de prueba, recorrer cada sección de `/admin`, guardar y comprobar el cambio; consola sin errores y vista móvil 375 px (`emulate` con `375x812x2,mobile,touch`).
+- UI: MCP Chrome DevTools: abrir `npm run dev:test` (base de pruebas; `npm run dev` solo si hace falta producción), entrar con un usuario de prueba, recorrer cada sección de `/admin`, guardar y comprobar el cambio; consola sin errores y vista móvil 375 px (`emulate` con `375x812x2,mobile,touch`).
