@@ -8,15 +8,19 @@ import { saveErrorMessage, triggerVercelDeploy } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { SaveButton } from '@/components/admin/SaveButton'
+import { LimitedField } from '@/components/admin/LimitedField'
+import { NativeSelect } from '@/components/admin/NativeSelect'
+import { CONTRACT } from '@/lib/contract/contract.generated'
+import { isOverMaxItems } from '@/lib/contract/limits'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { Service } from '@/types/database'
 
-const EMPTY_FORM = { title: '', description: '', order: 0 }
+const EMPTY_FORM = { title: '', description: '', order: 0, icon: '' }
+const L = CONTRACT.limits
 
 export default function ServiciosPage() {
   const { siteId } = useUser()
@@ -60,6 +64,7 @@ export default function ServiciosPage() {
       title: item.title ?? '',
       description: item.description ?? '',
       order: item.order ?? 0,
+      icon: item.icon ?? '',
     })
     setDialogOpen(true)
   }
@@ -73,6 +78,7 @@ export default function ServiciosPage() {
         title: form.title,
         description: form.description,
         order: form.order,
+        icon: form.icon || null, // un valor fuera de la lista se conserva tal cual hasta que el cliente elija otro
       }
       const { error } = await upsertService(siteId, payload)
       if (error) { toast.error(saveErrorMessage(error)); return }
@@ -116,6 +122,10 @@ export default function ServiciosPage() {
         </Button>
       </div>
 
+      {isOverMaxItems(items.length, CONTRACT.maxItems.services) && (
+        <p className="text-sm text-destructive">Máximo {CONTRACT.maxItems.services} servicios: se guardan igual, pero hay que dejar {CONTRACT.maxItems.services} para publicar.</p>
+      )}
+
       {items.length === 0 ? (
         <p className="rounded-xl border border-dashed border-zinc-200 py-12 text-center text-sm text-zinc-400">
           Todavía no hay servicios. ¡Agregá el primero!
@@ -154,11 +164,21 @@ export default function ServiciosPage() {
           <form onSubmit={handleSave} className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label htmlFor="title">Nombre del servicio</Label>
-              <Input id="title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Ej: Corte de cabello" required />
+              <LimitedField id="title" value={form.title} onChange={(v) => setForm((f) => ({ ...f, title: v }))} limit={L['services[].title']} placeholder="Ej: Corte de cabello" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="desc">Descripción (opcional)</Label>
-              <Textarea id="desc" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Breve descripción del servicio..." rows={2} />
+              <Label htmlFor="desc">Descripción</Label>
+              <LimitedField id="desc" multiline rows={2} value={form.description} onChange={(v) => setForm((f) => ({ ...f, description: v }))} limit={L['services[].description']} placeholder="Breve descripción del servicio..." />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="svc-icon">Ícono</Label>
+              <NativeSelect id="svc-icon" value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}>
+                <option value="">Pendiente de elegir…</option>
+                {form.icon && !(CONTRACT.icons as readonly string[]).includes(form.icon) && (
+                  <option value={form.icon}>{form.icon} (no está en la lista: elegí otro)</option>
+                )}
+                {CONTRACT.icons.map((name) => <option key={name} value={name}>{name}</option>)}
+              </NativeSelect>
             </div>
             <div className="space-y-2">
               <Label htmlFor="svc-order">Orden</Label>

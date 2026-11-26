@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
+import { NotPublishedNotice } from '@/components/admin/NotPublishedNotice'
 import { Upload, X } from 'lucide-react'
 import type { GalleryImage } from '@/types/database'
 
@@ -111,14 +112,16 @@ export default function ImagenesPage() {
       <form onSubmit={handleSaveMain} className="space-y-6">
         <Card>
           <CardHeader><CardTitle className="text-base">Logo</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
+            <NotPublishedNotice />
             <ImageUpload bucket="images" path={`${siteId}/logo`} currentUrl={logoUrl} onUpload={(url) => setLogoUrl(url || null)} label="Subir logo" />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader><CardTitle className="text-base">Imagen principal (hero)</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
+            <NotPublishedNotice />
             <ImageUpload bucket="images" path={`${siteId}/hero`} currentUrl={heroUrl} onUpload={(url) => setHeroUrl(url || null)} label="Subir imagen principal" />
           </CardContent>
         </Card>
@@ -133,6 +136,7 @@ export default function ImagenesPage() {
           <div>
             <h2 className="font-medium text-zinc-900">Galería de fotos</h2>
             <p className="text-sm text-zinc-500">Podés subir varias imágenes a la vez.</p>
+            <NotPublishedNotice />
           </div>
           <Button size="sm" variant="outline" className="gap-1.5" disabled={uploading} onClick={() => galleryInputRef.current?.click()}>
             <Upload size={14} />

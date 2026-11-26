@@ -8,15 +8,18 @@ import { saveErrorMessage, triggerVercelDeploy } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { SaveButton } from '@/components/admin/SaveButton'
+import { LimitedField } from '@/components/admin/LimitedField'
+import { CONTRACT } from '@/lib/contract/contract.generated'
+import { isOverMaxItems } from '@/lib/contract/limits'
 import { Plus, Pencil, Trash2, Star } from 'lucide-react'
 import type { Testimonial } from '@/types/database'
 
-const EMPTY_FORM = { author_name: '', text: '', rating: 5, order: 0 }
+const EMPTY_FORM = { author_name: '', role: '', text: '', rating: 5, order: 0 }
+const L = CONTRACT.limits
 
 export default function TestimoniosPage() {
   const { siteId } = useUser()
@@ -56,7 +59,7 @@ export default function TestimoniosPage() {
 
   function openEdit(item: Testimonial) {
     setEditing(item)
-    setForm({ author_name: item.author_name ?? '', text: item.text ?? '', rating: item.rating ?? 5, order: item.order ?? 0 })
+    setForm({ author_name: item.author_name ?? '', role: item.role ?? '', text: item.text ?? '', rating: item.rating ?? 5, order: item.order ?? 0 })
     setDialogOpen(true)
   }
 
@@ -64,7 +67,8 @@ export default function TestimoniosPage() {
     e.preventDefault()
     if (!siteId) return
     startTransition(async () => {
-      const payload = editing ? { id: editing.id, ...form } : form
+      const values = { ...form, role: form.role.trim() ? form.role : null }
+      const payload = editing ? { id: editing.id, ...values } : values
       const { error } = await upsertTestimonial(siteId, payload)
       if (error) { toast.error(saveErrorMessage(error)); return }
       await triggerVercelDeploy(deployHook)
@@ -106,6 +110,10 @@ export default function TestimoniosPage() {
           <Plus size={15} /> Agregar
         </Button>
       </div>
+
+      {isOverMaxItems(items.length, CONTRACT.maxItems.testimonials) && (
+        <p className="text-sm text-destructive">Máximo {CONTRACT.maxItems.testimonials} testimonios: se guardan igual, pero hay que dejar {CONTRACT.maxItems.testimonials} para publicar.</p>
+      )}
 
       {items.length === 0 ? (
         <p className="rounded-xl border border-dashed border-zinc-200 py-12 text-center text-sm text-zinc-400">
@@ -150,11 +158,15 @@ export default function TestimoniosPage() {
           <form onSubmit={handleSave} className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label htmlFor="author_name">Nombre del cliente</Label>
-              <Input id="author_name" value={form.author_name} onChange={(e) => setForm((f) => ({ ...f, author_name: e.target.value }))} placeholder="María García" required />
+              <LimitedField id="author_name" value={form.author_name} onChange={(v) => setForm((f) => ({ ...f, author_name: v }))} limit={L['testimonials[].name']} placeholder="María García" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Rol o relación con el negocio (opcional)</Label>
+              <LimitedField id="role" value={form.role} onChange={(v) => setForm((f) => ({ ...f, role: v }))} limit={L['testimonials[].role']} placeholder="Ej: Clienta desde 2020" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="text">Comentario</Label>
-              <Textarea id="text" value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} placeholder="Excelente servicio..." rows={3} required />
+              <LimitedField id="text" multiline value={form.text} onChange={(v) => setForm((f) => ({ ...f, text: v }))} limit={L['testimonials[].text']} placeholder="Excelente servicio..." required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
