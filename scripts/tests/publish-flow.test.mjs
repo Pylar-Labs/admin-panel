@@ -48,10 +48,10 @@ function make(over = {}) {
     loadRows: async () => { log('loadRows'); return state.rows },
     github: {
       readSchemaVersion: async () => { log('readSchemaVersion'); return state.webVersion },
-      writeData: async (_repo, _branch, content) => { log('writeData'); if (state.failCommit) throw new Error('409'); state.lastContent = content; return state.unchanged ? { changed: false } : { changed: true, sha: 'abc123' } },
+      writeData: async (_repo, _branch, content) => { log('writeData'); if (state.failCommit) throw new Error('409'); state.lastContent = content; return state.unchanged ? { changed: false, sha: 'head123' } : { changed: true, sha: 'abc123' } },
     },
     vercel: {
-      latestDeployment: async () => { log('latestDeployment'); if (state.vercelThrows) throw new Error('vercel'); return state.deployment },
+      latestDeployment: async (_project, opts) => { log('latestDeployment'); state.lastQuery = opts; if (state.vercelThrows) throw new Error('vercel'); return state.deployment },
       trigger: async () => { log('trigger'); if (state.failHook) throw new Error('hook') },
     },
   }
@@ -154,18 +154,57 @@ test('RF-8: publicar dos veces lo mismo es válido: sin cambios en el repositori
   const first = await publish(m)
   assert.equal(first.status, 'saved')
   assert.ok(m.state.calls.includes('trigger'))
-  assert.equal(m.state.row.last_commit_sha, null)
+  assert.equal(m.state.row.last_commit_sha, 'head123', 'se confirma contra el último commit del repositorio')
   const second = await publish(m)
   assert.equal(second.status, 'saved')
   assert.equal(m.state.calls.filter((c) => c === 'trigger').length, 2)
 })
 
-test('RF-9: sin cambios en el repositorio y sin enlace de despliegue: datos guardados, la web no se actualizó', async () => {
+// Hallazgo 1 de la entrega real: los mismos datos sin enlace de despliegue NO son un error. El repositorio ya los tiene, así
+// que se confirma contra el despliegue de su último commit (sin forzar uno nuevo).
+test('RF-8: mismos datos y sin enlace de despliegue: se confirma con el despliegue del último commit y queda publicado', async () => {
   const m = make({ unchanged: true })
   m.state.row = { ...m.state.row, deploy_hook: null }
   const r = await publish(m)
-  assert.equal(r.status, 'deploy_failed')
+  assert.equal(r.status, 'saved')
+  assert.ok(!m.state.calls.includes('trigger'), 'sin enlace no hay nada que llamar')
+  assert.equal(m.state.row.last_commit_sha, 'head123')
+  m.state.deployment = { state: 'READY' }
+  assert.equal((await getPublishStatus('s', m.deps)).status, 'published')
+})
+
+test('RF-9: mismos datos, sin enlace y el último commit del repositorio falló al construirse: la web no se actualizó', async () => {
+  const m = make({ unchanged: true })
+  m.state.row = { ...m.state.row, deploy_hook: null }
+  await publish(m)
+  m.state.deployment = { state: 'ERROR' }
+  const s = await getPublishStatus('s', m.deps)
+  assert.equal(s.status, 'deploy_failed')
+  assert.equal(s.message, MSG_SAVED_NOT_LIVE)
+})
+
+test('al confirmar con un commit conocido se busca su despliegue sin límite de fecha (puede ser anterior a la publicación)', async () => {
+  const m = make({ unchanged: true })
+  m.state.row = { ...m.state.row, deploy_hook: null }
+  await publish(m)
+  await getPublishStatus('s', m.deps)
+  assert.deepEqual(m.state.lastQuery, { sinceMs: 0, sha: 'head123' })
+  const withHook = make({ unchanged: false })
+  await publish(withHook)
+  await getPublishStatus('s', withHook.deps)
+  assert.equal(withHook.state.lastQuery.sha, 'abc123')
+})
+
+test('Hallazgo 3: tras un build roto y el repositorio ya reparado, reintentar sin enlace recupera (el último commit está sano)', async () => {
+  const m = make({ failCommit: true })
+  await publish(m)
   assert.equal(m.state.row.status, 'deploy_failed')
+  m.state.failCommit = false
+  m.state.unchanged = true // el repositorio ya trae estos datos
+  m.state.row = { ...m.state.row, deploy_hook: null }
+  assert.equal((await retryDeploy('s', 'user-1', m.deps)).status, 'saved')
+  m.state.deployment = { state: 'READY' }
+  assert.equal((await getPublishStatus('s', m.deps)).status, 'published')
 })
 
 test('RF-9: falla el commit: los datos quedan guardados, «la web aún no se actualizó», y el reintento no revalida', async () => {
