@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "contract:sync": "node scripts/sync-contract.mjs",
-    "test": "node --test scripts/tests/contract-sync.test.mjs scripts/tests/validator.test.mjs scripts/tests/limits.test.mjs scripts/tests/slug.test.mjs scripts/tests/build-site-data.test.mjs scripts/tests/locate-errors.test.mjs scripts/tests/publish-flow.test.mjs scripts/tests/adapters.test.mjs scripts/tests/no-secrets-client.test.mjs",
+    "test": "node --test scripts/tests/contract-sync.test.mjs scripts/tests/validator.test.mjs scripts/tests/limits.test.mjs scripts/tests/slug.test.mjs scripts/tests/storage-path.test.mjs scripts/tests/password-errors.test.mjs scripts/tests/build-site-data.test.mjs scripts/tests/locate-errors.test.mjs scripts/tests/publish-flow.test.mjs scripts/tests/adapters.test.mjs scripts/tests/no-secrets-client.test.mjs",
     "test:db": "node --env-file=.env.local --test scripts/tests/aislamiento.test.mjs scripts/tests/alta.test.mjs"
   },
   "dependencies": {

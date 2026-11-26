@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { passwordErrorMessage } from '@/lib/auth/password-errors'
 import { SaveButton } from '@/components/admin/SaveButton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,7 +41,7 @@ export default function CuentaPage() {
       const supabase = createClient()
       const { error } = await supabase.auth.updateUser({ password })
       if (error) {
-        toast.error('Error al actualizar la contraseña.')
+        toast.error(passwordErrorMessage(error))
         return
       }
       setSaved(true)
@@ -84,6 +85,7 @@ export default function CuentaPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Mínimo 6 caracteres"
                 autoComplete="new-password"
+                aria-invalid={validationError ? true : undefined}
                 disabled={isPending}
               />
             </div>
@@ -96,11 +98,12 @@ export default function CuentaPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Repetí la contraseña"
                 autoComplete="new-password"
+                aria-invalid={validationError ? true : undefined}
                 disabled={isPending}
               />
             </div>
             {validationError && (
-              <p className="text-sm text-red-600">{validationError}</p>
+              <p role="alert" className="text-sm text-red-600">{validationError}</p>
             )}
             <SaveButton isPending={isPending} saved={saved} label="Actualizar contraseña" />
           </form>
