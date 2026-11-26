@@ -4,18 +4,18 @@ import { useState, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useUser } from '@/hooks/useUser'
 import { getSiteConfig, upsertSiteConfig } from '@/lib/supabase/queries'
-import { saveErrorMessage, triggerVercelDeploy } from '@/lib/utils'
+import { saveErrorMessage } from '@/lib/utils'
 import { SaveButton } from '@/components/admin/SaveButton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { SectionIssues } from '@/components/admin/SectionIssues'
 import { AtSign, Globe } from 'lucide-react'
 
 export default function RedesPage() {
   const { siteId } = useUser()
   const [instagram, setInstagram] = useState('')
   const [facebook, setFacebook] = useState('')
-  const [deployHook, setDeployHook] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -25,7 +25,6 @@ export default function RedesPage() {
       if (!config) return
       setInstagram(config.instagram ?? '')
       setFacebook(config.facebook ?? '')
-      setDeployHook(config.vercel_deploy_hook ?? null)
     })
   }, [siteId])
 
@@ -39,7 +38,6 @@ export default function RedesPage() {
         toast.error(saveErrorMessage(error))
         return
       }
-      await triggerVercelDeploy(deployHook)
       setSaved(true)
       toast.success('Redes sociales actualizadas')
       setTimeout(() => setSaved(false), 2500)
@@ -54,6 +52,8 @@ export default function RedesPage() {
           Estos datos aparecen en el pie de tu sitio web.
         </p>
       </div>
+
+      <SectionIssues section="redes" refreshKey={saved} />
 
       <Card>
         <CardHeader>

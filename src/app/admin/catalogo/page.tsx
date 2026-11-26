@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useUser } from '@/hooks/useUser'
 import { getProducts, upsertProduct, deleteProduct, getSiteConfig, upsertSiteConfig } from '@/lib/supabase/queries'
-import { saveErrorMessage, triggerVercelDeploy } from '@/lib/utils'
+import { saveErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,7 @@ import { CONTRACT } from '@/lib/contract/contract.generated'
 import { isOverMaxItems } from '@/lib/contract/limits'
 import { makeSlug } from '@/lib/slug'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionIssues } from '@/components/admin/SectionIssues'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { Product } from '@/types/database'
 
@@ -31,7 +32,6 @@ const NO_DECIMALS = ['CLP', 'COP']
 export default function CatalogoPage() {
   const { siteId } = useUser()
   const [items, setItems] = useState<Product[]>([])
-  const [deployHook, setDeployHook] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
@@ -55,7 +55,6 @@ export default function CatalogoPage() {
   const apply = useCallback((loaded: Awaited<ReturnType<typeof fetchData>>) => {
     if (!loaded) return
     setItems(loaded.data)
-    setDeployHook(loaded.config?.vercel_deploy_hook ?? null)
     if (loaded.config) {
       const c = loaded.config
       setCatalog({ currency: c.currency, show_prices: c.show_prices, group_by_category: c.group_by_category, product_cta_label: c.product_cta_label ?? '' })
@@ -109,7 +108,6 @@ export default function CatalogoPage() {
       }
       const { error } = await upsertProduct(siteId, payload)
       if (error) { toast.error(saveErrorMessage(error)); return }
-      await triggerVercelDeploy(deployHook)
       toast.success(editing ? 'Producto actualizado' : 'Producto agregado')
       setDialogOpen(false)
       setSaved(true)
@@ -124,7 +122,6 @@ export default function CatalogoPage() {
     startCatalogTransition(async () => {
       const { error } = await upsertSiteConfig(siteId, { ...catalog, product_cta_label: catalog.product_cta_label.trim() ? catalog.product_cta_label : null })
       if (error) { toast.error(saveErrorMessage(error)); return }
-      await triggerVercelDeploy(deployHook)
       setSavedCatalog(true)
       toast.success('Ajustes del catálogo guardados')
       setTimeout(() => setSavedCatalog(false), 2500)
@@ -135,7 +132,6 @@ export default function CatalogoPage() {
     startTransition(async () => {
       const { error } = await deleteProduct(id)
       if (error) { toast.error('Error al eliminar.'); return }
-      await triggerVercelDeploy(deployHook)
       toast.success('Producto eliminado')
       setConfirmId(null)
       load()
@@ -146,7 +142,6 @@ export default function CatalogoPage() {
     if (!siteId) return
     const { error } = await upsertProduct(siteId, { id: item.id, active: !item.active })
     if (error) { toast.error(saveErrorMessage(error)); return }
-    await triggerVercelDeploy(deployHook)
     load()
   }
 
@@ -161,6 +156,8 @@ export default function CatalogoPage() {
           <Plus size={15} /> Agregar
         </Button>
       </div>
+
+      <SectionIssues section="catalogo" refreshKey={saved || savedCatalog} />
 
       <form onSubmit={handleSaveCatalog}>
         <Card>

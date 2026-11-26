@@ -167,7 +167,7 @@ describe('alta de clientes (spec 005)', () => {
     const [cfg] = await configsNamed(n)
     assert.equal(cfg.site_id, res.siteId)
     assert.equal(cfg.business_name, n)
-    for (const f of ['tagline', 'description', 'phone', 'whatsapp', 'email', 'address', 'instagram', 'facebook', 'logo_url', 'hero_image_url', 'hero_title', 'hero_subtitle', 'map_embed_url', 'vercel_deploy_hook']) {
+    for (const f of ['tagline', 'description', 'phone', 'whatsapp', 'email', 'address', 'instagram', 'facebook', 'logo_url', 'hero_image_url', 'hero_title', 'hero_subtitle', 'map_embed_url']) {
       assert.equal(cfg[f], null, `${f} debería estar vacío`)
     }
     const [user] = await usersOf(mail)

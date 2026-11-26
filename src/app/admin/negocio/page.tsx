@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Plus, Trash2 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { getSiteConfig, upsertSiteConfig } from '@/lib/supabase/queries'
-import { saveErrorMessage, triggerVercelDeploy } from '@/lib/utils'
+import { saveErrorMessage } from '@/lib/utils'
 import { CONTRACT } from '@/lib/contract/contract.generated'
 import { isOverMaxItems, isValidWhatsapp } from '@/lib/contract/limits'
 import { SaveButton } from '@/components/admin/SaveButton'
@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { SectionIssues } from '@/components/admin/SectionIssues'
 import type { AboutStat, HoursSchedule, SectionKey } from '@/types/database'
 
 const L = CONTRACT.limits
@@ -116,7 +117,6 @@ function ButtonFields({
 
 export default function NegocioPage() {
   const { siteId } = useUser()
-  const [deployHook, setDeployHook] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -166,7 +166,6 @@ export default function NegocioPage() {
         testimonials: { title: config.section_titles?.testimonials?.title ?? '', subtitle: config.section_titles?.testimonials?.subtitle ?? '' },
         contact: { title: config.section_titles?.contact?.title ?? '', subtitle: config.section_titles?.contact?.subtitle ?? '' },
       })
-      setDeployHook(config.vercel_deploy_hook ?? null)
     })
   }, [siteId])
 
@@ -206,7 +205,6 @@ export default function NegocioPage() {
         hours,
       })
       if (error) { toast.error(saveErrorMessage(error)); return }
-      await triggerVercelDeploy(deployHook)
       setSaved(true)
       toast.success('Cambios guardados')
       setTimeout(() => setSaved(false), 2500)
@@ -221,6 +219,8 @@ export default function NegocioPage() {
         <h1 className="text-xl font-semibold text-zinc-900">Mi negocio</h1>
         <p className="mt-1 text-sm text-zinc-500">Información general que aparece en tu sitio web.</p>
       </div>
+
+      <SectionIssues section="negocio" refreshKey={saved} />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>

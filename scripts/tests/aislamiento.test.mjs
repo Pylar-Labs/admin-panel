@@ -32,7 +32,7 @@ const ctx = {}
 
 // RF-2: campos exactos de cada conjunto (los del modelo actual del panel, y ninguno más).
 const EXPECTED_COLUMNS = {
-  site_config: ['id', 'site_id', 'business_name', 'tagline', 'description', 'phone', 'whatsapp', 'email', 'address', 'hours', 'instagram', 'facebook', 'logo_url', 'hero_image_url', 'hero_title', 'hero_subtitle', 'map_embed_url', 'vercel_deploy_hook', 'active', 'created_at',
+  site_config: ['id', 'site_id', 'business_name', 'tagline', 'description', 'phone', 'whatsapp', 'email', 'address', 'hours', 'instagram', 'facebook', 'logo_url', 'hero_image_url', 'hero_title', 'hero_subtitle', 'map_embed_url', 'active', 'created_at',
     // spec 001
     'language', 'about_title', 'about_body', 'about_stats', 'about_highlights', 'hero_cta_primary_label', 'hero_cta_primary_href', 'hero_cta_secondary_label', 'hero_cta_secondary_href', 'currency', 'show_prices', 'group_by_category', 'product_cta_label', 'section_titles'],
   gallery: ['id', 'site_id', 'image_url', 'caption', 'order', 'active'],
@@ -285,15 +285,7 @@ describe('aislamiento multicliente (spec 004)', () => {
     assert.ok(write.error, 'creó un servicio en un sitio sin configuración')
   })
 
-  // ── T6 · sin sesión y enlace de despliegue (RF-6, RF-14) ───────────────────
-
-  const HOOK_A = 'https://example.com/hook-secreto-de-a'
-  async function seedHook() {
-    const ids = await seed()
-    const { error } = await ctx.svc.from('site_config').update({ vercel_deploy_hook: HOOK_A }).eq('id', ids.a.site_config)
-    if (error) throw new Error(`montaje: no se pudo guardar el enlace de despliegue: ${error.message}`)
-    return ids
-  }
+  // ── T6 · sin sesión (RF-6). El enlace de despliegue ya no está en site_config: ver «site_deploy» más abajo ──
 
   for (const table of FIVE_TABLES) {
     test(`RF-6: sin sesión no se lee nada en ${table}`, async () => {
@@ -316,27 +308,19 @@ describe('aislamiento multicliente (spec 004)', () => {
     })
   }
 
-  test('RF-6: sin sesión no se obtiene el enlace de despliegue', async () => {
-    await seedHook()
-    const { data, error } = await ctx.anon.from('site_config').select('vercel_deploy_hook')
-    assert.equal(error?.code, DENIED, 'el visitante sin sesión no recibió "permiso denegado"')
-    assert.ok(!JSON.stringify(data ?? []).includes(HOOK_A), 'se filtró el enlace de despliegue')
+  test('RF-14: B lee solo la configuración de su sitio', async () => {
+    await seed()
+    const { data, error } = await ctx.b.client.from('site_config').select('site_id')
+    assert.ifError(error)
+    assert.ok(data.length >= 1 && data.every((r) => r.site_id === ctx.siteB), 'B ve la configuración de otro sitio')
   })
 
-  test('RF-14: B no lee la configuración de A ni su enlace de despliegue', async () => {
-    await seedHook()
-    const { data, error } = await ctx.b.client.from('site_config').select('site_id, vercel_deploy_hook')
-    assert.ifError(error)
-    assert.ok(data.every((r) => r.site_id === ctx.siteB), 'B ve la configuración de otro sitio')
-    assert.ok(!JSON.stringify(data).includes(HOOK_A), 'se filtró el enlace de despliegue de A a B')
-  })
-
-  test('RF-14: A lee su propia configuración con su enlace de despliegue', async () => {
-    await seedHook()
-    const { data, error } = await ctx.a.client.from('site_config').select('site_id, vercel_deploy_hook').eq('site_id', ctx.siteA)
-    assert.ifError(error)
-    assert.equal(data.length, 1)
-    assert.equal(data[0].vercel_deploy_hook, HOOK_A)
+  test('spec 002 RF-11: site_config ya no guarda el enlace de despliegue (vive en site_deploy, solo de servidor)', async () => {
+    await seed()
+    for (const client of [ctx.svc, ctx.a.client]) {
+      const { error } = await client.from('site_config').select('vercel_deploy_hook')
+      assert.equal(error?.code, '42703', `la columna vercel_deploy_hook sigue existiendo (${error?.code})`)
+    }
   })
 
   // ── T7 · permisos sobre la configuración y los elementos (RF-8, RF-9) ──────
@@ -430,6 +414,92 @@ describe('aislamiento multicliente (spec 004)', () => {
     const dup = await ctx.svc.from('products').insert({ ...NEW_ROW.products(ctx.siteA), slug })
     assert.equal(dup.error?.code, '23505', 'se aceptó un slug repetido en el mismo sitio')
     assert.ifError((await ctx.svc.from('products').insert({ ...NEW_ROW.products(ctx.siteB), slug })).error)
+  })
+
+  // ── Spec 002 · site_deploy, solo de servidor (RF-7, RF-11, RF-13) ──────────
+
+  const SITE_DEPLOY_COLUMNS = ['site_id', 'deploy_hook', 'github_repo', 'github_branch', 'vercel_project_id', 'status', 'locked_at', 'started_at', 'published_data', 'published_schema_version', 'published_at', 'published_by', 'last_commit_sha', 'last_message', 'updated_at']
+  const HOOK_SECRET = 'https://example.com/hook-site-deploy-secreto'
+  let deployPromise
+  function seedDeploy() {
+    deployPromise ??= (async () => {
+      await seed()
+      for (const site of [ctx.siteA, ctx.siteB]) {
+        const { error } = await ctx.svc.from('site_deploy').upsert({ site_id: site, deploy_hook: HOOK_SECRET, status: 'idle', locked_at: null })
+        if (error) throw new Error(`montaje: no se pudo sembrar site_deploy de ${site}: ${error.message}`)
+      }
+    })()
+    return deployPromise
+  }
+  // La toma del bloqueo del plan: un solo UPDATE condicionado (entra solo si no hay publicación en curso o ya venció).
+  const acquire = (site, minutes = 10) =>
+    ctx.svc.from('site_deploy')
+      .update({ status: 'publishing', locked_at: new Date().toISOString() })
+      .eq('site_id', site)
+      .or(`status.neq.publishing,locked_at.lt.${new Date(Date.now() - minutes * 60_000).toISOString()}`)
+      .select('site_id')
+
+  test('RF-11: site_deploy tiene exactamente las columnas del modelo', async () => {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/`, { headers: { apikey: SERVICE_KEY } })
+    const { definitions } = await res.json()
+    assert.ok(definitions.site_deploy, 'no existe la tabla site_deploy')
+    assert.deepEqual(Object.keys(definitions.site_deploy.properties).sort(), [...SITE_DEPLOY_COLUMNS].sort())
+  })
+
+  for (const [who, get] of [['A', () => ctx.a.client], ['B', () => ctx.b.client], ['admin', () => ctx.admin.client], ['sin sesión', () => ctx.anon]]) {
+    test(`RF-13: ${who} no lee ni escribe site_deploy (permiso denegado)`, async () => {
+      await seedDeploy()
+      const client = get()
+      const read = await client.from('site_deploy').select('*')
+      assert.equal(read.error?.code, DENIED, `leer no recibió "permiso denegado" (${read.error?.code})`)
+      assert.ok(!JSON.stringify(read.data ?? []).includes(HOOK_SECRET), 'se filtró el enlace de despliegue')
+      const insert = await client.from('site_deploy').insert({ site_id: ctx.siteA })
+      assert.equal(insert.error?.code, DENIED, 'crear no recibió "permiso denegado"')
+      const update = await client.from('site_deploy').update({ status: 'published' }).eq('site_id', ctx.siteA).select('site_id')
+      assert.equal(update.error?.code, DENIED, 'cambiar no recibió "permiso denegado"')
+      const del = await client.from('site_deploy').delete().eq('site_id', ctx.siteA).select('site_id')
+      assert.equal(del.error?.code, DENIED, 'borrar no recibió "permiso denegado"')
+      const { data: still } = await ctx.svc.from('site_deploy').select('status, deploy_hook').eq('site_id', ctx.siteA).single()
+      assert.deepEqual([still.status, still.deploy_hook], ['idle', HOOK_SECRET])
+    })
+  }
+
+  test('RF-7: dos publicaciones a la vez del mismo sitio: entra solo una', async () => {
+    await seedDeploy()
+    await ctx.svc.from('site_deploy').update({ status: 'idle', locked_at: null }).eq('site_id', ctx.siteA)
+    const results = await Promise.all([acquire(ctx.siteA), acquire(ctx.siteA)])
+    results.forEach((r) => assert.ifError(r.error))
+    assert.equal(results.filter((r) => r.data.length === 1).length, 1, 'entraron dos publicaciones (o ninguna)')
+  })
+
+  test('RF-7: una publicación sin terminar se libera a los 10 minutos, no antes', async () => {
+    await seedDeploy()
+    const lockedAgo = (minutes) => ctx.svc.from('site_deploy').update({ status: 'publishing', locked_at: new Date(Date.now() - minutes * 60_000).toISOString() }).eq('site_id', ctx.siteB)
+    assert.ifError((await lockedAgo(5)).error)
+    assert.equal((await acquire(ctx.siteB)).data.length, 0, 'entró otra publicación con la anterior reciente')
+    assert.ifError((await lockedAgo(11)).error)
+    assert.equal((await acquire(ctx.siteB)).data.length, 1, 'no se liberó una publicación vencida')
+  })
+
+  test('RF-13: el bloqueo de un sitio no afecta a otro', async () => {
+    await seedDeploy()
+    await ctx.svc.from('site_deploy').update({ status: 'idle', locked_at: null }).in('site_id', [ctx.siteA, ctx.siteB])
+    assert.equal((await acquire(ctx.siteA)).data.length, 1)
+    assert.equal((await acquire(ctx.siteB)).data.length, 1)
+  })
+
+  test('RF-11: al borrar la configuración de un sitio se borra su site_deploy', async () => {
+    const site = `${PREFIX}${ctx.runId}-casc`
+    assert.ifError((await ctx.svc.from('site_config').insert({ site_id: site })).error)
+    assert.ifError((await ctx.svc.from('site_deploy').insert({ site_id: site })).error)
+    assert.ifError((await ctx.svc.from('site_config').delete().eq('site_id', site)).error)
+    const { data } = await ctx.svc.from('site_deploy').select('site_id').eq('site_id', site)
+    assert.equal(data.length, 0, 'quedó un site_deploy huérfano')
+  })
+
+  test('RF-11: site_deploy no admite un sitio sin configuración', async () => {
+    const { error } = await ctx.svc.from('site_deploy').insert({ site_id: `${PREFIX}${ctx.runId}-sin-config` })
+    assert.equal(error?.code, '23503', `esperaba clave foránea, llegó ${error?.code}`)
   })
 
   // ── T8 · almacenamiento de imágenes (RF-13) ────────────────────────────────
@@ -547,11 +617,11 @@ describe('aislamiento multicliente (spec 004)', () => {
   // ── T10 · no se crean otras tablas (RF-15) ─────────────────────────────────
   // La estructura de las cinco se compara además con la línea base (tarea T20).
 
-  test('RF-15: las únicas tablas del panel son los cinco conjuntos', async () => {
+  test('RF-15: las únicas tablas del panel son los cinco conjuntos y site_deploy (spec 002, solo de servidor)', async () => {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/`, { headers: { apikey: SERVICE_KEY } })
     assert.equal(res.status, 200)
     const { definitions } = await res.json()
-    assert.deepEqual(Object.keys(definitions).sort(), [...FIVE_TABLES].sort())
+    assert.deepEqual(Object.keys(definitions).sort(), [...FIVE_TABLES, 'site_deploy'].sort())
   })
 
   // ── La forma real de guardar del panel (src/lib/supabase/queries.ts) ───────

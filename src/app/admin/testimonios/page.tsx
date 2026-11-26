@@ -3,8 +3,8 @@
 import { useState, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useUser } from '@/hooks/useUser'
-import { getTestimonials, upsertTestimonial, deleteTestimonial, getSiteConfig } from '@/lib/supabase/queries'
-import { saveErrorMessage, triggerVercelDeploy } from '@/lib/utils'
+import { getTestimonials, upsertTestimonial, deleteTestimonial } from '@/lib/supabase/queries'
+import { saveErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { SaveButton } from '@/components/admin/SaveButton'
 import { LimitedField } from '@/components/admin/LimitedField'
+import { SectionIssues } from '@/components/admin/SectionIssues'
 import { CONTRACT } from '@/lib/contract/contract.generated'
 import { isOverMaxItems } from '@/lib/contract/limits'
 import { Plus, Pencil, Trash2, Star } from 'lucide-react'
@@ -24,7 +25,6 @@ const L = CONTRACT.limits
 export default function TestimoniosPage() {
   const { siteId } = useUser()
   const [items, setItems] = useState<Testimonial[]>([])
-  const [deployHook, setDeployHook] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [editing, setEditing] = useState<Testimonial | null>(null)
@@ -35,14 +35,13 @@ export default function TestimoniosPage() {
   // Pedir los datos y aplicarlos van separados: el estado se guarda dentro de un .then, no dentro del efecto.
   const fetchData = useCallback(async () => {
     if (!siteId) return null
-    const [data, config] = await Promise.all([getTestimonials(siteId), getSiteConfig(siteId)])
-    return { data, config }
+    const data = await getTestimonials(siteId)
+    return { data }
   }, [siteId])
 
   const apply = useCallback((loaded: Awaited<ReturnType<typeof fetchData>>) => {
     if (!loaded) return
     setItems(loaded.data)
-    setDeployHook(loaded.config?.vercel_deploy_hook ?? null)
   }, [])
 
   const load = useCallback(() => fetchData().then(apply), [fetchData, apply])
@@ -71,7 +70,6 @@ export default function TestimoniosPage() {
       const payload = editing ? { id: editing.id, ...values } : values
       const { error } = await upsertTestimonial(siteId, payload)
       if (error) { toast.error(saveErrorMessage(error)); return }
-      await triggerVercelDeploy(deployHook)
       toast.success(editing ? 'Testimonio actualizado' : 'Testimonio agregado')
       setDialogOpen(false)
       setSaved(true)
@@ -84,7 +82,6 @@ export default function TestimoniosPage() {
     startTransition(async () => {
       const { error } = await deleteTestimonial(id)
       if (error) { toast.error('Error al eliminar.'); return }
-      await triggerVercelDeploy(deployHook)
       toast.success('Testimonio eliminado')
       setConfirmId(null)
       load()
@@ -95,7 +92,6 @@ export default function TestimoniosPage() {
     if (!siteId) return
     const { error } = await upsertTestimonial(siteId, { id: item.id, active: !item.active })
     if (error) { toast.error(saveErrorMessage(error)); return }
-    await triggerVercelDeploy(deployHook)
     load()
   }
 
@@ -110,6 +106,8 @@ export default function TestimoniosPage() {
           <Plus size={15} /> Agregar
         </Button>
       </div>
+
+      <SectionIssues section="testimonios" refreshKey={saved} />
 
       {isOverMaxItems(items.length, CONTRACT.maxItems.testimonials) && (
         <p className="text-sm text-destructive">Máximo {CONTRACT.maxItems.testimonials} testimonios: se guardan igual, pero hay que dejar {CONTRACT.maxItems.testimonials} para publicar.</p>

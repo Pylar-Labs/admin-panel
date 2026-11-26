@@ -13,6 +13,7 @@ import {
   X,
   Menu,
   Users,
+  Rocket,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/admin/catalogo', label: 'Catálogo', icon: ShoppingBag },
   { href: '/admin/testimonios', label: 'Testimonios', icon: Star },
   { href: '/admin/redes', label: 'Redes sociales', icon: Share2 },
+  { href: '/admin/publicar', label: 'Publicar', icon: Rocket },
   { href: '/admin/cuenta', label: 'Mi cuenta', icon: User },
 ]
 
@@ -33,7 +35,7 @@ function SidebarContent({ onClose, isAdmin, hasClient }: { onClose?: () => void 
   const pathname = usePathname()
   // Admin: «Clientes» siempre; las secciones de datos solo con un cliente elegido. Cliente: el menú de siempre.
   const items = isAdmin
-    ? [CLIENTS_ITEM, ...(hasClient ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.href === '/admin/cuenta'))]
+    ? [CLIENTS_ITEM, ...(hasClient ? NAV_ITEMS.filter((i) => i.href !== '/admin/publicar') : NAV_ITEMS.filter((i) => i.href === '/admin/cuenta'))]
     : NAV_ITEMS
 
   return (
