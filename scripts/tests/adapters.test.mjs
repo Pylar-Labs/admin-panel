@@ -41,10 +41,29 @@ test('GitHub: archivo nuevo → PUT sin sha, contenido en base64', async () => {
   assert.deepEqual(f.calls[1].body, { message: 'msg', content: b64('{"a":1}\n'), branch: 'main' })
 })
 
-test('GitHub: contenido idéntico → sin cambios y sin PUT', async () => {
-  const f = fakeFetch(existing('{"a":1}\n', 's0'))
-  assert.deepEqual(await createGithub({ token: 't', fetch: f.fn }).writeData('o/r', 'main', '{"a":1}\n', 'msg'), { changed: false })
-  assert.equal(f.calls.length, 1)
+test('GitHub: contenido idéntico → sin cambios, sin PUT y devuelve el último commit de la rama', async () => {
+  const f = fakeFetch(existing('{"a":1}\n', 's0'), { body: 'headsha123' })
+  assert.deepEqual(await createGithub({ token: 't', fetch: f.fn }).writeData('o/r', 'main', '{"a":1}\n', 'msg'), { changed: false, sha: 'headsha123' })
+  assert.equal(f.calls.length, 2)
+  assert.ok(f.calls.every((c) => c.method === 'GET'), 'no se escribe nada')
+  assert.match(f.calls[1].url, /api\.github\.com\/repos\/o\/r\/commits\/main$/)
+  assert.equal(f.calls[1].headers.Accept, 'application/vnd.github.sha')
+})
+
+// Hallazgo 2: la base guarda el JSON reordenando las claves; el mismo contenido en otro orden no es un cambio.
+test('GitHub: mismo contenido con las claves en otro orden (y otro formato) → sin cambios y sin commit', async () => {
+  const stored = '{\n  "b": {"y": 2, "x": 1},\n  "a": [1, {"q": 1, "p": 2}]\n}\n'
+  const sent = '{"a":[1,{"p":2,"q":1}],"b":{"x":1,"y":2}}'
+  const f = fakeFetch(existing(stored, 's0'), { body: 'head' })
+  assert.deepEqual(await createGithub({ token: 't', fetch: f.fn }).writeData('o/r', 'main', sent, 'msg'), { changed: false, sha: 'head' })
+  assert.ok(f.calls.every((c) => c.method === 'GET'))
+})
+
+test('GitHub: el orden de las listas sí cuenta; un archivo que no es JSON se reescribe', async () => {
+  const a = fakeFetch(existing('{"a":[1,2]}', 's0'), { body: { commit: { sha: 'c9' } } })
+  assert.equal((await createGithub({ token: 't', fetch: a.fn }).writeData('o/r', 'main', '{"a":[2,1]}', 'm')).changed, true)
+  const b = fakeFetch(existing('no es json', 's0'), { body: { commit: { sha: 'c8' } } })
+  assert.equal((await createGithub({ token: 't', fetch: b.fn }).writeData('o/r', 'main', '{"a":1}', 'm')).changed, true)
 })
 
 test('GitHub: contenido distinto → PUT con el sha actual', async () => {

@@ -5,6 +5,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { buildContract, renderContract, buildVendor } from '../sync-contract.mjs'
 
+// En Windows Git puede dejar los archivos con \r\n (core.autocrlf): el final de línea no cuenta para la frescura.
+const lf = (text) => text.replace(/\r\n/g, '\n')
 const SCHEMA = JSON.parse(readFileSync(new URL('../../../template-landing/docs/site.schema.json', import.meta.url), 'utf8'))
 const GENERATED = new URL('../../src/lib/contract/contract.generated.ts', import.meta.url)
 
@@ -49,7 +51,7 @@ test('máximos de lista, íconos, idiomas, monedas y WhatsApp', () => {
 })
 
 test('la copia generada coincide con una regeneración en vivo', () => {
-  assert.equal(readFileSync(GENERATED, 'utf8'), renderContract(buildContract()))
+  assert.equal(lf(readFileSync(GENERATED, 'utf8')), renderContract(buildContract()))
 })
 
 // ── Spec 002 (RF-5, RF-14): validador copiado del template ──────────────────
@@ -69,7 +71,7 @@ test('existen los cuatro archivos del validador copiado y ninguno importa astro/
 test('la copia del validador coincide con una regeneración en vivo', () => {
   const live = buildVendor()
   assert.deepEqual(Object.keys(live).sort(), [...VENDOR_FILES].sort())
-  for (const f of VENDOR_FILES) assert.equal(readFileSync(vendorUrl(f), 'utf8'), live[f], `${f} desactualizado: npm run contract:sync`)
+  for (const f of VENDOR_FILES) assert.equal(lf(readFileSync(vendorUrl(f), 'utf8')), live[f], `${f} desactualizado: npm run contract:sync`)
 })
 
 test('la versión del contrato del validador copiado es la del template', () => {

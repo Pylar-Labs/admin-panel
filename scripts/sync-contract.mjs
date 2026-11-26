@@ -64,7 +64,8 @@ const TEMPLATE_ROOT = new URL('../../template-landing/', import.meta.url)
 export function buildVendor() {
   return Object.fromEntries(
     Object.entries(VENDOR_SOURCES).map(([out, src]) => {
-      const text = readFileSync(new URL(src, TEMPLATE_ROOT), 'utf8').replaceAll('"astro/zod"', '"zod/v4"')
+      // Siempre con \n: en Windows el template puede estar en disco con \r\n y la copia no debe depender de eso.
+      const text = readFileSync(new URL(src, TEMPLATE_ROOT), 'utf8').replace(/\r\n/g, '\n').replaceAll('"astro/zod"', '"zod/v4"')
       return [out, `// GENERADO por scripts/sync-contract.mjs desde ../template-landing/${src} — NO EDITAR (npm run contract:sync).\n${out === 'content/site.schema.ts' ? '/* eslint-disable @typescript-eslint/no-unused-vars -- código copiado tal cual del template */\n' : ''}${text}`]
     })
   )

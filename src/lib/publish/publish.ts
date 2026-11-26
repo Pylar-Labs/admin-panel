@@ -44,16 +44,14 @@ export type PublishResult =
 
 const isMissingCredentials = (e: unknown) => e instanceof Error && e.name === 'MissingCredentials'
 
-// Escribe el archivo en el repositorio de la web; si no cambió (mismos datos) fuerza el despliegue con el enlace.
+// Escribe el archivo en el repositorio de la web. Si no cambió (mismos datos) el repositorio ya los tiene: con enlace de
+// despliegue se fuerza un build; sin enlace se confirma contra el despliegue del último commit (no es un error).
 // Los datos ya están guardados: una falla aquí deja «datos guardados, la web aún no se actualizó» (RF-9).
 async function deliver(siteId: string, row: DeployRow, data: Record<string, unknown>, deps: Deps, startedIso: string): Promise<PublishResult> {
   try {
     const written = await deps.github.writeData(row.github_repo ?? '', row.github_branch, JSON.stringify(data, null, 2) + '\n', 'Publicar datos del sitio desde el panel')
-    if (!written.changed) {
-      if (!row.deploy_hook) throw new Error('sin enlace de despliegue')
-      await deps.vercel.trigger(row.deploy_hook)
-    }
-    await deps.update(siteId, { status: 'saved', locked_at: null, started_at: startedIso, last_commit_sha: written.changed ? written.sha ?? null : null, last_message: null })
+    if (!written.changed && row.deploy_hook) await deps.vercel.trigger(row.deploy_hook)
+    await deps.update(siteId, { status: 'saved', locked_at: null, started_at: startedIso, last_commit_sha: written.sha ?? null, last_message: null })
     return { status: 'saved' }
   } catch {
     await deps.update(siteId, { status: 'deploy_failed', locked_at: null, started_at: startedIso, last_message: MSG_SAVED_NOT_LIVE })
@@ -145,7 +143,8 @@ export async function getPublishStatus(siteId: string, deps: Deps): Promise<Publ
     const started = row.started_at ? Date.parse(row.started_at) : now
     let deployment: { state: string } | null = null
     try {
-      deployment = await deps.vercel.latestDeployment(row.vercel_project_id, { sinceMs: started, sha: row.last_commit_sha })
+      // Con un commit conocido alcanza con su sha: su despliegue puede ser anterior a esta publicación (mismos datos).
+      deployment = await deps.vercel.latestDeployment(row.vercel_project_id, { sinceMs: row.last_commit_sha ? 0 : started, sha: row.last_commit_sha })
     } catch {
       // Vercel no respondió: se sigue esperando (no se da por publicada ni por fallida).
     }

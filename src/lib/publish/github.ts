@@ -7,6 +7,20 @@ const SCHEMA_PATH = 'src/content/site.schema.ts'
 
 type Opts = { token: string; fetch?: typeof fetch }
 
+// La base devuelve el JSON con las claves reordenadas: dos archivos son «el mismo» si tienen el mismo contenido, aunque
+// cambie el orden de las claves o el formato. El orden de las listas sí cuenta. Un archivo que no es JSON es «distinto».
+const canon = (v: unknown): unknown =>
+  Array.isArray(v) ? v.map(canon)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, x]) => [k, canon(x)]))
+    : v
+function sameContent(a: string, b: string): boolean {
+  try {
+    return JSON.stringify(canon(JSON.parse(a))) === JSON.stringify(canon(JSON.parse(b)))
+  } catch {
+    return false
+  }
+}
+
 export function createGithub({ token, fetch: f = fetch }: Opts) {
   const headers = (accept: string) => ({ Authorization: `Bearer ${token}`, Accept: accept, 'X-GitHub-Api-Version': '2022-11-28' })
   const fileUrl = (repo: string, path: string) => `${API}/repos/${repo}/contents/${path}`
@@ -27,12 +41,19 @@ export function createGithub({ token, fetch: f = fetch }: Opts) {
     return { sha: json.sha, content: Buffer.from(json.content ?? '', 'base64').toString('utf8') }
   }
 
-  // Escribe el archivo de datos; si el contenido ya es idéntico no hace commit. Ante un conflicto (409/422: el archivo
-  // cambió entre la lectura y la escritura) relee y reintenta una vez.
+  // Último commit de la rama (para confirmar contra su despliegue cuando no hay nada que escribir).
+  async function headSha(repo: string, branch: string): Promise<string> {
+    const res = await f(`${API}/repos/${repo}/commits/${encodeURIComponent(branch)}`, { headers: headers('application/vnd.github.sha') })
+    if (!res.ok) throw new Error(`GitHub respondió ${res.status} al leer el último commit`)
+    return (await res.text()).trim()
+  }
+
+  // Escribe el archivo de datos; si el contenido ya es el mismo no hace commit y devuelve el último commit de la rama.
+  // Ante un conflicto (409/422: el archivo cambió entre la lectura y la escritura) relee y reintenta una vez.
   async function writeData(repo: string, branch: string, content: string, message: string): Promise<{ changed: boolean; sha?: string }> {
     for (let attempt = 0; attempt < 2; attempt++) {
       const existing = await current(repo, branch)
-      if (existing && existing.content === content) return { changed: false }
+      if (existing && sameContent(existing.content, content)) return { changed: false, sha: await headSha(repo, branch) }
       const res = await f(fileUrl(repo, DATA_PATH), {
         method: 'PUT',
         headers: headers('application/vnd.github+json'),
