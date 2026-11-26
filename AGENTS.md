@@ -9,7 +9,7 @@ Panel donde cada cliente de la agencia edita los datos de SU web (negocio, imág
 
 ## Stack y estructura
 - Next.js 16.2 (App Router) · React 19 · TypeScript 5 · Tailwind 4 · shadcn (`@base-ui/react`, estilo base-nova) · Supabase (`@supabase/ssr`)
-- `src/app/admin/*` secciones · `src/app/login` · `src/middleware.ts` protege `/admin` · `src/lib/supabase/` clientes y `queries.ts` · `src/types/database.ts` tipos de tablas · `src/components/{admin,ui}`
+- `src/app/admin/*` secciones · `src/app/login` · `src/proxy.ts` (antes middleware; corre en Node.js, es solo una comprobación optimista de sesión) protege `/admin` · `src/lib/supabase/` clientes y `queries.ts` · `src/types/database.ts` tipos de tablas · `src/components/{admin,ui}`
 - `docs/constitution.md` principios · `specs/NNN-*/` specs · `MEMORY.md` memoria entre sesiones
 
 ## Comandos
